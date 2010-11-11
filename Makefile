@@ -26,10 +26,10 @@ ${OBJS}: ${HDRS}
 ${OBJS}: %.o: %.c
 
 %.h: %.h.py
-	PYTHONPATH=src:${HOME}/proto ${PYTHON} $< > $@
+	${PYTHON} $< > $@
 
 %.c: %.c.py
-	PYTHONPATH=src:${HOME}/proto ${PYTHON} $< > $@
+	${PYTHON} $< > $@
 
 clean:
 	rm -f ${PROGRAMS} ${OBJS} src/protocol.c src/protocol.h src/codec/encodings.h src/*.pyc
