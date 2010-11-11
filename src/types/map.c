@@ -57,7 +57,7 @@ int amp_map_inspect(amp_object_t *o, char **pos, char *limit)
   return 0;
 }
 
-int amp_map_hash(amp_object_t *o)
+intptr_t amp_map_hash(amp_object_t *o)
 {
   amp_map_t *m = o;
   int hash = 0;

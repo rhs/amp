@@ -54,7 +54,7 @@ int amp_symbol_inspect(amp_object_t *o, char **pos, char *limit)
   return amp_format(pos, limit, "%s", s->name);
 }
 
-int amp_symbol_hash(amp_object_t *o)
+intptr_t amp_symbol_hash(amp_object_t *o)
 {
   amp_symbol_t *s = o;
   return s->hash;

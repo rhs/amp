@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <arpa/inet.h>
 #include <amp/codec.h>
 #include "encodings.h"
@@ -407,11 +408,11 @@ void print_short(void *ctx, int16_t v) { printf("%hi\n", v); }
 void print_uint(void *ctx, uint32_t v) { printf("%u\n", v); }
 void print_int(void *ctx, int32_t v) { printf("%i\n", v); }
 void print_float(void *ctx, float v) { printf("%f\n", v); }
-void print_ulong(void *ctx, uint64_t v) { printf("%llu\n", v); }
-void print_long(void *ctx, int64_t v) { printf("%lli\n", v); }
+void print_ulong(void *ctx, uint64_t v) { printf("%"PRIu64"\n", v); }
+void print_long(void *ctx, int64_t v) { printf("%"PRIi64"\n", v); }
 void print_double(void *ctx, double v) { printf("%f\n", v); }
 
-void print_bytes(char *label, size_t size, char *bytes) {
+void print_bytes(char *label, int size, char *bytes) {
   printf("%s(%.*s)\n", label, size, bytes);
 }
 
@@ -419,8 +420,8 @@ void print_binary(void *ctx, size_t size, char *bytes) { print_bytes("bin", size
 void print_utf8(void *ctx, size_t size, char *bytes) { print_bytes("utf8", size, bytes); }
 void print_utf16(void *ctx, size_t size, char *bytes) { print_bytes("utf16", size, bytes); }
 void print_symbol(void *ctx, size_t size, char *bytes) { print_bytes("sym", size, bytes); }
-void print_list(void *ctx, size_t count) { printf("begin list %d\n", count); }
-void print_map(void *ctx, size_t count) { printf("begin map %d\n", count); }
+void print_list(void *ctx, size_t count) { printf("begin list %zd\n", count); }
+void print_map(void *ctx, size_t count) { printf("begin map %zd\n", count); }
 void print_descriptor(void *ctx) { printf("descriptor "); }
 
 amp_data_callbacks_t *printer = &AMP_DATA_CALLBACKS(print);

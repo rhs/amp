@@ -80,7 +80,7 @@ char *amp_ainspect(amp_object_t *o)
   }
 }
 
-int amp_hash(amp_object_t *o)
+intptr_t amp_hash(amp_object_t *o)
 {
   if (o)
     return amp_type(o)->hash(o);

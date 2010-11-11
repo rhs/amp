@@ -63,7 +63,7 @@ int amp_boolean_inspect(amp_object_t *o, char **pos, char *limit)
   return amp_format(pos, limit, b->value ? "true" : "false");
 }
 
-int amp_boolean_hash(amp_object_t *o)
+intptr_t amp_boolean_hash(amp_object_t *o)
 {
   amp_boolean_t *b = o;
   return b->value ? 1 : 0;
@@ -106,7 +106,7 @@ SCALAR_CONVERSIONS(boolean)
     return o;                                                             \
   }                                                                       \
                                                                           \
-  int amp_ ## NAME ## _hash(amp_object_t *o)                              \
+  intptr_t amp_ ## NAME ## _hash(amp_object_t *o)                              \
   {                                                                       \
     amp_ ## NAME ## _t *n = o;                                            \
     return n->value;                                                      \

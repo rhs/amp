@@ -59,7 +59,7 @@ int amp_list_inspect(amp_object_t *o, char **pos, char *limit)
   return 0;
 }
 
-int amp_list_hash(amp_object_t *o)
+intptr_t amp_list_hash(amp_object_t *o)
 {
   amp_list_t *l = o;
   int i, hash = 1, n = l->size;

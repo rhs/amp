@@ -45,7 +45,7 @@ struct amp_type_st {
 
   /* Basic Protocol */
   int (*inspect)(amp_object_t *o, char **pos, char *limit);
-  int (*hash)(amp_object_t *o);
+  intptr_t (*hash)(amp_object_t *o);
   int (*compare)(amp_object_t *a, amp_object_t *b);
   bool encodable;
   size_t (*encode_space)(amp_object_t *o);
@@ -155,7 +155,7 @@ struct amp_type_st {
 #define AMP_TYPE_DECL(TYPE, STEM)                                         \
   extern amp_type_t *TYPE;                                                \
   int amp_ ## STEM ## _inspect(amp_object_t *o, char **pos, char *limit); \
-  int amp_ ## STEM ## _hash(amp_object_t *o);                             \
+  intptr_t amp_ ## STEM ## _hash(amp_object_t *o);                             \
   int amp_ ## STEM ## _compare(amp_object_t *a, amp_object_t *b);
 
 #define AMP_ENCODABLE_DECL(TYPE, STEM)                                  \
@@ -184,7 +184,7 @@ struct amp_type_st {
 int amp_format(char **pos, char *limit, const char *fmt, ...);
 int amp_inspect(amp_object_t *o, char **pos, char *limit);
 char *amp_ainspect(amp_object_t *o);
-int amp_hash(amp_object_t *o);
+intptr_t amp_hash(amp_object_t *o);
 int amp_compare(amp_object_t *a, amp_object_t *b);
 bool amp_equal(amp_object_t *a, amp_object_t *b);
 bool amp_isa(amp_object_t *o, amp_type_t *t);

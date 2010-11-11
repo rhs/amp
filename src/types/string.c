@@ -48,7 +48,7 @@ int amp_string_inspect(amp_object_t *o, char **pos, char *limit)
   return amp_format(pos, limit, "%ls", s->wcs);
 }
 
-int amp_string_hash(amp_object_t *o)
+intptr_t amp_string_hash(amp_object_t *o)
 {
   amp_string_t *s = o;
   wchar_t *c;
