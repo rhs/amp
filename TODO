@@ -1,0 +1,5 @@
+ - frame dispatch
+ - fill in fake codecs
+ - uuid, timestamp
+ - tests: swig/python? mains?
+ - eliminate exported structs
