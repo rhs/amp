@@ -1,5 +1,6 @@
 CFLAGS := -Wall -Werror -pedantic-errors -std=c99 -g -Iinclude
 PYTHON := python
+PYTHONPATH := ${PWD}
 CODEC_SRC := src/codec/codec.c
 FRAMING_SRC := src/framing/framing.c
 TYPES_SRC := src/types/allocation.c  src/types/encoder.c  src/types/string.c \
@@ -26,10 +27,10 @@ ${OBJS}: ${HDRS}
 ${OBJS}: %.o: %.c
 
 %.h: %.h.py
-	${PYTHON} $< > $@
+	PYTHONPATH=${PYTHONPATH} ${PYTHON} $< > $@
 
 %.c: %.c.py
-	${PYTHON} $< > $@
+	PYTHONPATH=${PYTHONPATH} ${PYTHON} $< > $@
 
 clean:
 	rm -f ${PROGRAMS} ${OBJS} src/protocol.c src/protocol.h src/codec/encodings.h src/*.pyc

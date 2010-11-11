@@ -1,0 +1,8 @@
+*.pyc
+*.o
+src/codec/encodings.h
+src/protocol.c
+src/protocol.h
+src/driver
+src/test
+src/type_test
