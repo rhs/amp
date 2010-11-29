@@ -198,4 +198,27 @@ AMP_SCALAR_DECL(DEFAULT, default)
 
 void amp_unimplemented(amp_object_t *o, const char *msg);
 
+/* Convenience */
+
+#define AMP_DEFAULT_INSPECT(STEM)                                        \
+  int amp_ ## STEM ## _inspect(amp_object_t *o, char **pos, char *limit) \
+  {                                                                      \
+    int n;                                                               \
+    if ((n = amp_format(pos, limit, #STEM))) return n;                   \
+    if ((n = amp_format(pos, limit, "<%p>", o))) return n;               \
+    return 0;                                                            \
+  }                                                                      \
+
+#define AMP_DEFAULT_HASH(STEM)                        \
+  intptr_t amp_ ## STEM ## _hash(amp_object_t *o)     \
+  {                                                   \
+    return (intptr_t) o;                              \
+  }
+
+#define AMP_DEFAULT_COMPARE(STEM)                                 \
+  int amp_ ## STEM ## _compare(amp_object_t *a, amp_object_t *b)  \
+  {                                                               \
+    return b != a;                                                \
+  }
+
 #endif /* type.h */

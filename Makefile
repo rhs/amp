@@ -8,13 +8,15 @@ TYPES_SRC := src/types/allocation.c  src/types/encoder.c  src/types/string.c \
 	src/types/box.c         src/types/map.c      src/types/type.c \
 	src/types/decoder.c     src/types/scalars.c
 PROTOCOL_SRC := src/protocol.c
+ENGINE_SRC := src/engine/engine.c src/engine/connection.c src/engine/session.c src/engine/link.c
 
-SRCS := ${TYPES_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC}
+SRCS := ${TYPES_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} ${ENGINE_SRC}
 OBJS := ${SRCS:.c=.o}
 HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 	${FRAMING_SRC:src/framing/%.c=include/amp/%.h} \
 	${CODEC_SRC:src/codec/%.c=include/amp/%.h} \
 	${PROTOCOL_SRC:%.c=%.h} \
+	include/amp/engine.h \
 	src/codec/encodings.h
 
 PROGRAMS := src/test src/type_test src/driver

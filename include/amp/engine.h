@@ -22,31 +22,13 @@
  *
  */
 
-typedef struct {
-  int code;
-  // ...
-} amp_error_t;
+#include <sys/time.h>
 
-typedef struct {
-  char *host;
-  // ...
-} amp_connection_t;
-
-typedef struct {
-  amp_connection_t *connection;
-  // ...
-} amp_session_t;
-
-typedef struct {
-  amp_connection_t *connection;
-  amp_session_t *session;
-  // ...
-} amp_link_t;
-
-typedef struct {
-  amp_connection_t *connection;
-  // ...
-} amp_engine_t;
+typedef struct amp_error_t amp_error_t;
+typedef struct amp_connection_t amp_connection_t;
+typedef struct amp_session_t amp_session_t;
+typedef struct amp_link_t amp_link_t;
+typedef struct amp_engine_t amp_engine_t;
 
 /* Bottom Half */
 
@@ -79,7 +61,7 @@ int amp_connection_open(amp_connection_t *conn, ...);
 int amp_connection_close(amp_connection_t *conn, ...);
 
 /* Sessions */
-amp_session_t *amp_session_create(amp_connection_t *conn, ...);
+amp_session_t *amp_session_create();
 int amp_session_destroy(amp_session_t *session);
 amp_error_t *amp_session_error(amp_session_t *session);
 
@@ -87,7 +69,7 @@ int amp_session_begin(amp_session_t *session);
 int amp_session_end(amp_session_t *session);
 
 /* Links */
-amp_link_t *engine_link_create(amp_engine_t *engine);
+amp_link_t *amp_link_create();
 int amp_link_destroy(amp_link_t *link);
 amp_error_t *amp_link_error(amp_link_t *link);
 
