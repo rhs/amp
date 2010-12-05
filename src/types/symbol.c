@@ -32,7 +32,7 @@ amp_symbol_t *amp_symbol(amp_region_t *mem, const char *name)
 
 amp_symbol_t *amp_symboln(amp_region_t *mem, const char *name, size_t size)
 {
-  int hash = 1;
+  uintptr_t hash = 1;
   amp_symbol_t *o = amp_allocate(mem, NULL, sizeof(amp_symbol_t) + size + 1);
   if (!o) return NULL;
   o->type = SYMBOL;
@@ -54,7 +54,7 @@ int amp_symbol_inspect(amp_object_t *o, char **pos, char *limit)
   return amp_format(pos, limit, "%s", s->name);
 }
 
-intptr_t amp_symbol_hash(amp_object_t *o)
+uintptr_t amp_symbol_hash(amp_object_t *o)
 {
   amp_symbol_t *s = o;
   return s->hash;

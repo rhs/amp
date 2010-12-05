@@ -68,10 +68,10 @@ int amp_binary_inspect(amp_object_t *o, char **pos, char *limit)
     return 0;
 }
 
-intptr_t amp_binary_hash(amp_object_t *o)
+uintptr_t amp_binary_hash(amp_object_t *o)
 {
   amp_binary_t *b = o;
-  int hash = 0;
+  uintptr_t hash = 0;
   for (int i = 0; i < b->size; i++)
   {
     hash = 31*hash + b->bytes[i];

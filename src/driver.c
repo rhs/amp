@@ -81,9 +81,9 @@ int amp_driver_inspect(amp_object_t *o, char **pos, char *limit)
   return 0;
 }
 
-intptr_t amp_driver_hash(amp_object_t *o)
+uintptr_t amp_driver_hash(amp_object_t *o)
 {
-  return (intptr_t) o;
+  return (uintptr_t) o;
 }
 
 int amp_driver_compare(amp_object_t *a, amp_object_t *b)
@@ -160,9 +160,9 @@ int amp_selectable_inspect(amp_object_t *o, char **pos, char *limit)
   return amp_format(pos, limit, "selectable<%p>", o);
 }
 
-intptr_t amp_selectable_hash(amp_object_t *o)
+uintptr_t amp_selectable_hash(amp_object_t *o)
 {
-  return (intptr_t) o;
+  return (uintptr_t) o;
 }
 
 int amp_selectable_compare(amp_object_t *a, amp_object_t *b)

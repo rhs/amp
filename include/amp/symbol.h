@@ -27,7 +27,7 @@
 typedef struct {
   AMP_HEAD;
   size_t size;
-  int hash;
+  uintptr_t hash;
   char *name;
 } amp_symbol_t;
 

@@ -80,7 +80,7 @@ char *amp_ainspect(amp_object_t *o)
   }
 }
 
-intptr_t amp_hash(amp_object_t *o)
+uintptr_t amp_hash(amp_object_t *o)
 {
   if (o)
     return amp_type(o)->hash(o);
@@ -128,6 +128,18 @@ bool amp_scalar(amp_object_t *o)
   return amp_type(o)->scalar;
 }
 
+uint8_t amp_to_uint8(amp_object_t *o)
+{
+  if (o)
+  {
+    return amp_type(o)->to_uint8(o);
+  } else {
+    amp_fatal(o, "null pointer");
+    // XXX
+    return 0;
+  }
+}
+
 /* Default Implementation */
 
 #define DEFAULT_DEF(RETURN, NAME) \
@@ -160,7 +172,18 @@ int amp_default_encode(amp_object_t *o, amp_encoder_t *e, char **pos, char *limi
 
 void amp_unimplemented(amp_object_t *o, const char *msg)
 {
-  fprintf(stderr, "%s: %s does not support %s\n", amp_ainspect(o),
-          amp_type(o)->name, msg);
+  amp_fatal(o, "does not support %s", msg);
+}
+
+void amp_fatal(amp_object_t *o, const char *msg, ...)
+{
+  va_list ap;
+
+  va_start(ap, msg);
+  fprintf(stderr, "%s(%s): ", amp_ainspect(o), amp_type(o)->name);
+  vfprintf(stderr, msg, ap);
+  fprintf(stderr, "\n");
+  va_end(ap);
+
   exit(-1);
 }

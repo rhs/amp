@@ -48,11 +48,11 @@ int amp_string_inspect(amp_object_t *o, char **pos, char *limit)
   return amp_format(pos, limit, "%ls", s->wcs);
 }
 
-intptr_t amp_string_hash(amp_object_t *o)
+uintptr_t amp_string_hash(amp_object_t *o)
 {
   amp_string_t *s = o;
   wchar_t *c;
-  int hash = 1;
+  uintptr_t hash = 1;
   for (c = s->wcs; *c; c++)
   {
     hash = 31*hash + *c;

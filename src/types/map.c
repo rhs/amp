@@ -57,10 +57,10 @@ int amp_map_inspect(amp_object_t *o, char **pos, char *limit)
   return 0;
 }
 
-intptr_t amp_map_hash(amp_object_t *o)
+uintptr_t amp_map_hash(amp_object_t *o)
 {
   amp_map_t *m = o;
-  int hash = 0;
+  uintptr_t hash = 0;
   for (amp_entry_t *e = amp_map_head(m); e; e = amp_entry_next(e))
   {
     hash += amp_hash(amp_entry_key(e)) ^ amp_hash(amp_entry_value(e));
@@ -70,8 +70,8 @@ intptr_t amp_map_hash(amp_object_t *o)
 
 static amp_list_t *get_bucket(amp_map_t *m, amp_object_t *k, bool create)
 {
-  int hash = amp_hash(k);
-  int bidx = hash % amp_list_size(m->buckets);
+  uintptr_t hash = amp_hash(k);
+  uintptr_t bidx = hash % amp_list_size(m->buckets);
 
   amp_list_t *bucket = amp_list_get(m->buckets, bidx);
   if (!bucket && create) {

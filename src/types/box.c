@@ -46,7 +46,7 @@ int amp_box_inspect(amp_object_t *o, char **pos, char *limit)
   return 0;
 }
 
-intptr_t amp_box_hash(amp_object_t *o)
+uintptr_t amp_box_hash(amp_object_t *o)
 {
   amp_box_t *b = o;
   return amp_hash(amp_box_tag(b)) + amp_hash(amp_box_value(b));
