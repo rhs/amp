@@ -162,8 +162,7 @@ int piper(int argc, char **argv)
 
 
 struct handler_st {
-  amp_decoder_t *dec;
-  amp_region_t *region;
+  amp_engine_t *engine;
   int (*handle)(struct handler_st *h, char *bytes, size_t available);
 };
 
@@ -172,22 +171,7 @@ struct handler_st {
 
 int frame_reader(struct handler_st *h, char *bytes, size_t available)
 {
-  amp_frame_t frame;
-  size_t n = amp_read_frame(&frame, bytes, available);
-
-  if (n) {
-    amp_decoder_init(h->dec, h->region);
-    int e = amp_read_data(frame.payload, frame.size, decoder, h->dec);
-    if (e) {
-      printf("error: %d\n", e);
-    } else {
-      for (int i = 0; i < h->dec->size; i++) {
-        printf("%s\n", amp_ainspect(h->dec->values[i]));
-      }
-    }
-  }
-
-  return n;
+  return amp_engine_input(h->engine, bytes, available);
 }
 
 int proto_hdr(struct handler_st *h, char *bytes, size_t available)
@@ -230,18 +214,20 @@ int netpipe(int argc, char **argv)
   char *pos = output;
   char *limit = output + BUF_SIZE;
 
-  amp_encoder_t *enc = amp_encoder(AMP_HEAP);
-  amp_encoder_init(enc);
-  amp_decoder_t *dec = amp_decoder(AMP_HEAP);
-  amp_region_t *region = amp_region(1024*1024);
-  struct handler_st h = {dec, region, proto_hdr};
+  amp_connection_t *conn = amp_connection_create();
+  amp_engine_t *engine = amp_engine_create(conn);
+  struct handler_st h = {engine, proto_hdr};
 
   memmove(pos, "AMQP\x00\x01\x00\x00", 8);
   pos += 8;
 
-  bool sender = false;
-  bool receiver = true;
-  bool role = sender;
+  amp_encoder_t *enc = amp_encoder(AMP_HEAP);
+  amp_encoder_init(enc);
+  amp_region_t *region = amp_region(1024*1024);
+
+  bool sender = true;
+  bool receiver = false;
+  bool role = receiver;
 
   send_frame(&pos, limit, enc, amp_proto_open(region,
                                               HOSTNAME, L"asdf",
@@ -261,7 +247,7 @@ int netpipe(int argc, char **argv)
                               HANDLE, 0,
                               ROLE, role,
                               FLOW_STATE, flow_state,
-                              LOCAL, amp_proto_linkage(region, SOURCE, address)));
+                              LOCAL, amp_proto_linkage(region, TARGET, address)));
   if (role == sender) {
     amp_list_t *msg = amp_list(region, 4);
     amp_list_add(msg, amp_proto_fragment(region,
@@ -279,7 +265,7 @@ int netpipe(int argc, char **argv)
                                                                    LINK_CREDIT, 0),
                                   FRAGMENTS, msg));
   }
-  send_frame(&pos, limit, enc, amp_proto_detach(region, HANDLE, 0));
+  //send_frame(&pos, limit, enc, amp_proto_detach(region, HANDLE, 0));
   send_frame(&pos, limit, enc, amp_proto_end(region));
   send_frame(&pos, limit, enc, amp_proto_close(region));
 

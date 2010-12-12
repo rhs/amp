@@ -38,7 +38,7 @@ amp_error_t *amp_engine_error(amp_engine_t *engine);
 
 // supplies engine with n bytes of input, engine returns number of
 // bytes consumed, or -1 if there was an error
-int amp_engine_input(amp_engine_t *engine, const char *src, size_t n);
+int amp_engine_input(amp_engine_t *engine, char *src, size_t n);
 
 // supplies engine with n bytes of space for output, engine returns
 // number of bytes produced, or -1 if there was an error

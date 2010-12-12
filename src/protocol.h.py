@@ -34,7 +34,7 @@ kws = []
 
 for type in TYPES:
   name = tname(type)
-  print "#define amp_proto_%s(...) amp_proto_%s_kw(__VA_ARGS__, END)" % (name, name)
+  print "#define amp_proto_%s(...) amp_proto_%s_kw(__VA_ARGS__, KW_END)" % (name, name)
   print "amp_box_t *amp_proto_%s_kw(amp_region_t *mem, int first, ...);" % name
   print
 
@@ -48,6 +48,21 @@ for kw in kws:
   print "#define %s %s" % (kw, idx)
   idx += 1
 
-print "#define END %s" % idx
+print "#define KW_END %s" % idx
+print
+
+idx = 0
+
+for type in TYPES:
+  provides = type["@provides"]
+  if provides and "frame" in provides:
+    desc = type["descriptor"]
+    print "#define %s_NAME (\"%s\")" % (type["@name"].upper(), desc["@name"])
+    hi, lo = [int(x, 0) for x in desc["@code"].split(":")]
+    code = (hi << 32) + lo
+    print "#define %s_CODE (%s)" % (type["@name"].upper(), code)
+    print "#define %s (%s)" % (type["@name"].upper(), idx)
+    idx += 1
+
 print
 print "#endif /* protocol.h */"

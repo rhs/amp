@@ -73,7 +73,7 @@ for type in TYPES:
     print "      break;"
     idx += 1
 
-  print "    case END:"
+  print "    case KW_END:"
   print "      done = true;"
   print "      continue;"
   print "    default:"
