@@ -114,7 +114,7 @@ AMP_DEFAULT_COMPARE(engine)
 
 void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_box_t *body);
 
-int amp_engine_input(amp_engine_t *engine, char *src, size_t available)
+ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
 {
   amp_frame_t frame;
   size_t n = amp_read_frame(&frame, src, available);
@@ -137,11 +137,14 @@ int amp_engine_input(amp_engine_t *engine, char *src, size_t available)
   return n;
 }
 
-int amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
+ssize_t amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
 {
-  memmove(dst, engine->output, engine->available < n ? engine->available : n);
+  int m = engine->available < n ? engine->available : n;
+  memmove(dst, engine->output, m);
+  memmove(engine->output, engine->output + m, engine->available - m);
+  engine->available -= m;
   // XXX: need to check engine for errors
-  return 0;
+  return m;
 }
 
 #define BUF_SIZE (1024*1024)
@@ -156,35 +159,37 @@ void amp_engine_post_frame(amp_engine_t *e, uint16_t channel, amp_box_t *body)
   frame.payload = bytes;
   frame.size = pos - bytes;
   size_t n;
-  while (!(n = amp_write_frame(e->output, e->capacity - e->available, frame))) {
+  while (!(n = amp_write_frame(e->output + e->available,
+                               e->capacity - e->available, frame))) {
     e->capacity *= 2;
     e->output = amp_allocate(AMP_HEAP, e->output, e->capacity);
   }
   e->available += n;
 }
 
-#define DOUBLE_CLOSE (1)
+#define DOUBLE_OPEN (1)
+#define DOUBLE_CLOSE (2)
 
-int amp_engine_close(amp_engine_t *e, char *condition, wchar_t *description)
+int amp_engine_close(amp_engine_t *e, char *condition, wchar_t *description);
+
+int amp_engine_open(amp_engine_t *e, wchar_t *container_id, wchar_t *hostname)
 {
-  if (e->close_sent)
+  if (e->open_sent)
   {
-    e->error.code = DOUBLE_CLOSE;
+    e->error.code = DOUBLE_OPEN;
     return -1;
   }
 
-  amp_box_t *error = amp_proto_error(e->region, CONDITION, condition,
-                                     DESCRIPTION, description);
-  amp_engine_post_frame(e, 0, amp_proto_close(e->region, ERROR, error));
-  e->close_sent = true;
+  amp_engine_post_frame(e, 0, amp_proto_open(e->region,
+                                             CONTAINER_ID, container_id,
+                                             HOSTNAME, hostname));
+  e->open_sent = true;
+
   return 0;
 }
 
-#include <stdio.h>
-
 void amp_engine_do_open(amp_engine_t *e, amp_list_t *args)
 {
-  printf("OPEN: %s\n", amp_ainspect(args));
   if (e->open_rcvd) {
     amp_engine_close(e, "double-open", L"double open");
   } else {
@@ -225,6 +230,21 @@ void amp_engine_do_detach(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 void amp_engine_do_end(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
   printf("END: %s\n", amp_ainspect(args));
+}
+
+int amp_engine_close(amp_engine_t *e, char *condition, wchar_t *description)
+{
+  if (e->close_sent)
+  {
+    e->error.code = DOUBLE_CLOSE;
+    return -1;
+  }
+
+  amp_box_t *error = amp_proto_error(e->region, CONDITION, condition,
+                                     DESCRIPTION, description);
+  amp_engine_post_frame(e, 0, amp_proto_close(e->region, ERROR, error));
+  e->close_sent = true;
+  return 0;
 }
 
 void amp_engine_do_close(amp_engine_t *e, amp_list_t *args)

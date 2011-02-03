@@ -236,33 +236,30 @@ int netpipe(int argc, char **argv)
                                               CHANNEL_MAX, 255));
   send_frame(&pos, limit, enc, amp_proto_begin(region));
   amp_box_t *address = amp_proto_source(region, ADDRESS, amp_string(region, L"queue"));
-  amp_box_t *flow_state;
-  if (role == receiver)
-    flow_state = amp_proto_flow_state(region, LINK_CREDIT, 10);
-  else
-    flow_state = amp_proto_flow_state(region, TRANSFER_COUNT, 0, LINK_CREDIT, 0);
   send_frame(&pos, limit, enc,
              amp_proto_attach(region,
                               NAME, L"link",
                               HANDLE, 0,
                               ROLE, role,
-                              FLOW_STATE, flow_state,
                               LOCAL, amp_proto_linkage(region, TARGET, address)));
+  amp_box_t *flow;
+  if (role == receiver)
+    flow = amp_proto_flow(region, LINK_CREDIT, 10);
+  else
+    flow = amp_proto_flow(region, TRANSFER_COUNT, 0, LINK_CREDIT, 0);
+  send_frame(&pos, limit, enc, flow);
   if (role == sender) {
     amp_list_t *msg = amp_list(region, 4);
     amp_list_add(msg, amp_proto_fragment(region,
                                          FIRST, false,
                                          LAST, true,
                                          FORMAT_CODE, 0,
-                                         FRAGMENT_OFFSET, (uint64_t) 0));
+                                         SECTION_OFFSET, (uint64_t) 0));
     send_frame(&pos, limit, enc,
                amp_proto_transfer(region,
                                   HANDLE, 0,
                                   TRANSFER_ID, 0,
                                   SETTLED, true,
-                                  FLOW_STATE, amp_proto_flow_state(region,
-                                                                   TRANSFER_COUNT, 1,
-                                                                   LINK_CREDIT, 0),
                                   FRAGMENTS, msg));
   }
   //send_frame(&pos, limit, enc, amp_proto_detach(region, HANDLE, 0));

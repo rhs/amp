@@ -170,11 +170,84 @@ int amp_selectable_compare(amp_object_t *a, amp_object_t *b)
   return b != a;
 }
 
+#include <amp/engine.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+
+#define IO_BUF_SIZE (4*1024)
+
+struct amp_engine_ctx {
+  amp_engine_t *engine;
+  int in_size;
+  int out_size;
+  char input[IO_BUF_SIZE];
+  char output[IO_BUF_SIZE];
+};
+
+void amp_engine_readable(amp_selectable_t *sel)
+{
+  struct amp_engine_ctx *ctx = sel->context;
+  amp_engine_t *engine = ctx->engine;
+  int n = recv(sel->fd, ctx->input + ctx->in_size, IO_BUF_SIZE - ctx->in_size, 0);
+
+  if (n == 0) {
+    printf("disconnected");
+    sel->status = 0;
+    if (close(sel->fd) == -1)
+      perror("close");
+    amp_driver_remove(sel->driver, sel);
+  } else {
+    ctx->in_size += n;
+  }
+
+  amp_engine_input(engine, ctx->input, ctx->in_size);
+}
+
+void amp_engine_writable(amp_selectable_t *sel)
+{
+  struct amp_engine_ctx *ctx = sel->context;
+  amp_engine_t *engine = ctx->engine;
+  ssize_t n = amp_engine_output(engine, ctx->output + ctx->out_size, IO_BUF_SIZE - ctx->out_size);
+  if (n < 0) {
+    printf("internal error");
+    sel->status = 0;
+    if (close(sel->fd) == -1)
+      perror("close");
+    amp_driver_remove(sel->driver, sel);
+  } else {
+    ctx->out_size += n;
+    n = send(sel->fd, ctx->output, ctx->out_size, 0);
+    if (n < 0) {
+      // XXX
+      perror("writable");
+    } else {
+      ctx->out_size -= n;
+      memmove(ctx->output, ctx->output + n, ctx->out_size);
+    }
+    if (!ctx->out_size) {
+      sel->status &= ~AMP_SEL_WR;
+    }
+  }
+}
+
+amp_selectable_t *amp_selectable_engine(amp_region_t *mem, int sock,
+                                        amp_connection_t *conn)
+{
+  amp_selectable_t *sel = amp_selectable(mem);
+  sel->fd = sock;
+  sel->readable = &amp_engine_readable;
+  sel->writable = &amp_engine_writable;
+  sel->status = AMP_SEL_RD | AMP_SEL_WR;
+  struct amp_engine_ctx *ctx = amp_allocate(mem, NULL, sizeof(struct amp_engine_ctx));
+  ctx->engine = amp_engine_create(conn);
+  ctx->in_size = 0;
+  ctx->out_size = 0;
+  sel->context = ctx;
+  return sel;
+}
 
 void readable(amp_selectable_t *s)
 {
@@ -214,7 +287,8 @@ void writable(amp_selectable_t *s)
   }
 }
 
-amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port)
+amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
+                                amp_connection_t *conn)
 {
   struct addrinfo *addr;
   int code = getaddrinfo(host, port, NULL, &addr);
@@ -230,12 +304,7 @@ amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port)
   if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1)
     return NULL;
 
-  amp_selectable_t *s = amp_selectable(mem);
-  s->fd = sock;
-  s->readable = &readable;
-  s->writable = &writable;
-  s->status = AMP_SEL_RD | AMP_SEL_WR;
-  s->context = "AMQP\x00\x01\x00\x00";
+  amp_selectable_t *s = amp_selectable_engine(mem, sock, conn);
   return s;
 }
 
@@ -253,12 +322,9 @@ void do_accept(amp_selectable_t *s)
       printf("getnameinfo: %s\n", gai_strerror(code));
     else
       printf("accepted from %s:%s\n", host, serv);
-    amp_selectable_t *a = amp_selectable(s->region);
-    a->fd = sock;
+    amp_connection_t *conn = amp_connection_create();
+    amp_selectable_t *a = amp_selectable_engine(s->region, sock, conn);
     a->status = AMP_SEL_RD | AMP_SEL_WR;
-    a->readable = &readable;
-    a->writable = &writable;
-    a->context = "AMQP\x00\x01\x00\x00";
     amp_driver_add(s->driver, a);
   }
 }
@@ -301,8 +367,10 @@ int main(int argc, char **argv)
   //sel = amp_selectable(AMP_HEAP);
   if (argc > 1)
     sel = amp_acceptor(AMP_HEAP, "0.0.0.0", "5672");
-  else
-    sel = amp_connector(AMP_HEAP, "0.0.0.0", "5672");
+  else {
+    amp_connection_t *conn = amp_connection_create();
+    sel = amp_connector(AMP_HEAP, "0.0.0.0", "5672", conn);
+  }
   if (!sel) {
     perror("driver");
     exit(-1);
