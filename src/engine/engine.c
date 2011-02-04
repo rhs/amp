@@ -30,12 +30,6 @@
 #include <string.h>
 #include "../protocol.h"
 
-struct amp_error_t {
-  AMP_HEAD;
-  int code;
-  // ...
-};
-
 struct amp_engine_t {
   AMP_HEAD;
   amp_error_t error;
@@ -48,11 +42,6 @@ struct amp_engine_t {
   char *output;
   size_t available;
   size_t capacity;
-
-  bool open_sent;
-  bool open_rcvd;
-  bool close_sent;
-  bool close_rcvd;
 };
 
 AMP_TYPE_DECL(ENGINE, engine)
@@ -90,11 +79,6 @@ amp_engine_t *amp_engine_create(amp_connection_t *connection)
   o->capacity = 4*1024;
   o->output = amp_allocate(AMP_HEAP, NULL, o->capacity);
   o->available = 0;
-
-  o->open_sent = false;
-  o->open_rcvd = false;
-  o->close_sent = false;
-  o->close_rcvd = false;
 
   return o;
 }
@@ -148,58 +132,65 @@ ssize_t amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
 }
 
 #define BUF_SIZE (1024*1024)
-#include <stdio.h>
-void amp_engine_post_frame(amp_engine_t *e, uint16_t channel, amp_box_t *body)
+
+void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch, amp_box_t *body)
 {
   amp_frame_t frame = {0};
   char bytes[BUF_SIZE];
   char *pos = bytes;
-  amp_encoder_init(e->encoder);
-  amp_encode(body, e->encoder, &pos, pos + BUF_SIZE);
+  amp_encoder_init(eng->encoder);
+  amp_encode(body, eng->encoder, &pos, pos + BUF_SIZE);
+  frame.channel = ch;
   frame.payload = bytes;
   frame.size = pos - bytes;
   size_t n;
-  while (!(n = amp_write_frame(e->output + e->available,
-                               e->capacity - e->available, frame))) {
-    e->capacity *= 2;
-    e->output = amp_allocate(AMP_HEAP, e->output, e->capacity);
+  while (!(n = amp_write_frame(eng->output + eng->available,
+                               eng->capacity - eng->available, frame))) {
+    eng->capacity *= 2;
+    eng->output = amp_allocate(AMP_HEAP, eng->output, eng->capacity);
   }
-  e->available += n;
+  eng->available += n;
 }
 
-#define DOUBLE_OPEN (1)
-#define DOUBLE_CLOSE (2)
+#include <stdio.h>
 
-int amp_engine_close(amp_engine_t *e, char *condition, wchar_t *description);
-
-int amp_engine_open(amp_engine_t *e, wchar_t *container_id, wchar_t *hostname)
+int amp_engine_open(amp_engine_t *eng, wchar_t *container_id, wchar_t *hostname)
 {
-  if (e->open_sent)
-  {
-    e->error.code = DOUBLE_OPEN;
-    return -1;
-  }
-
-  amp_engine_post_frame(e, 0, amp_proto_open(e->region,
-                                             CONTAINER_ID, container_id,
-                                             HOSTNAME, hostname));
-  e->open_sent = true;
-
+  amp_engine_post_frame(eng, 0, amp_proto_open(eng->region,
+                                               CONTAINER_ID, container_id,
+                                               HOSTNAME, hostname));
   return 0;
 }
 
 void amp_engine_do_open(amp_engine_t *e, amp_list_t *args)
 {
-  if (e->open_rcvd) {
-    amp_engine_close(e, "double-open", L"double open");
+  printf("OPEN: %s\n", amp_ainspect(args));
+}
+
+int amp_engine_begin(amp_engine_t *eng, int channel, int remote_channel)
+{
+  amp_box_t *begin;
+  if (remote_channel == -1) {
+    begin = amp_proto_begin(eng->region);
   } else {
-    e->open_rcvd = true;
+    begin = amp_proto_begin(eng->region, REMOTE_CHANNEL, remote_channel);
   }
+  amp_engine_post_frame(eng, channel, begin);
+  return 0;
 }
 
 void amp_engine_do_begin(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
   printf("BEGIN: %s\n", amp_ainspect(args));
+}
+
+int amp_engine_attach(amp_engine_t *eng, uint16_t channel, bool role,
+                      int handle, amp_object_t *local, amp_object_t *remote)
+{
+  amp_box_t *attach = amp_proto_attach(eng->region, ROLE, role, HANDLE, handle,
+                                       LOCAL, local, REMOTE, remote);
+  amp_engine_post_frame(eng, channel, attach);
+  return 0;
 }
 
 void amp_engine_do_attach(amp_engine_t *e, uint16_t channel, amp_list_t *args)
@@ -222,9 +213,34 @@ void amp_engine_do_disposition(amp_engine_t *e, uint16_t channel, amp_list_t *ar
   printf("DISP: %s\n", amp_ainspect(args));
 }
 
+int amp_engine_detach(amp_engine_t *eng, int channel, int handle, amp_object_t *local,
+                      amp_object_t *remote, char *condition, wchar_t *description)
+{
+  amp_box_t *detach = amp_proto_detach(eng->region, HANDLE, handle,
+                                       LOCAL, local, REMOTE, remote,
+                                       CONDITION, condition,
+                                       DESCRIPTION, description);
+  amp_engine_post_frame(eng, channel, detach);
+  return 0;
+}
+
 void amp_engine_do_detach(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
   printf("DETACH: %s\n", amp_ainspect(args));
+}
+
+int amp_engine_end(amp_engine_t *eng, int channel, char *condition,
+                   wchar_t *description)
+{
+  amp_box_t *error;
+  if (condition) {
+    error = amp_proto_error(eng->region, CONDITION, condition,
+                                       DESCRIPTION, description);
+  } else {
+    error = NULL;
+  }
+  amp_engine_post_frame(eng, channel, amp_proto_end(eng->region, ERROR, error));
+  return 0;
 }
 
 void amp_engine_do_end(amp_engine_t *e, uint16_t channel, amp_list_t *args)
@@ -232,20 +248,19 @@ void amp_engine_do_end(amp_engine_t *e, uint16_t channel, amp_list_t *args)
   printf("END: %s\n", amp_ainspect(args));
 }
 
-int amp_engine_close(amp_engine_t *e, char *condition, wchar_t *description)
+int amp_engine_close(amp_engine_t *eng, char *condition, wchar_t *description)
 {
-  if (e->close_sent)
-  {
-    e->error.code = DOUBLE_CLOSE;
-    return -1;
+  amp_box_t *error;
+  if (condition) {
+    error = amp_proto_error(eng->region, CONDITION, condition,
+                                       DESCRIPTION, description);
+  } else{
+    error = NULL;
   }
-
-  amp_box_t *error = amp_proto_error(e->region, CONDITION, condition,
-                                     DESCRIPTION, description);
-  amp_engine_post_frame(e, 0, amp_proto_close(e->region, ERROR, error));
-  e->close_sent = true;
+  amp_engine_post_frame(eng, 0, amp_proto_close(eng->region, ERROR, error));
   return 0;
 }
+
 
 void amp_engine_do_close(amp_engine_t *e, amp_list_t *args)
 {
@@ -287,4 +302,9 @@ void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_box_t *body)
     amp_engine_do_close(e, args);
     break;
   }
+}
+
+time_t amp_engine_tick(amp_engine_t *eng, time_t now)
+{
+  return amp_connection_tick(eng->connection, eng, now);
 }
