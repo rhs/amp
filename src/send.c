@@ -1,6 +1,3 @@
-#ifndef _AMP_LIST_H
-#define _AMP_LIST_H 1
-
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,27 +19,35 @@
  *
  */
 
-#include <amp/type.h>
+#define _GNU_SOURCE
 
-typedef struct {
-  AMP_HEAD;
-  amp_object_t **elements;
-  size_t capacity;
-  size_t size;
-  amp_region_t *region;
-} amp_list_t;
+#include <stdio.h>
+#include <amp/driver.h>
 
-AMP_ENCODABLE_DECL(LIST, list)
-
-amp_list_t *amp_list(amp_region_t *mem, int capacity);
-amp_object_t *amp_list_get(amp_list_t *l, int index);
-amp_object_t *amp_list_set(amp_list_t *l, int index, amp_object_t *o);
-amp_object_t *amp_list_pop(amp_list_t *l, int index);
-void amp_list_add(amp_list_t *l, amp_object_t *o);
-int amp_list_index(amp_list_t *l, amp_object_t *o);
-bool amp_list_remove(amp_list_t *l, amp_object_t *o);
-void amp_list_fill(amp_list_t *l, amp_object_t *o, int n);
-void amp_list_clear(amp_list_t *l);
-int amp_list_size(amp_list_t *l);
-
-#endif /* list.h */
+int main(int argc, char **argv)
+{
+  amp_driver_t *drv = amp_driver(AMP_HEAP);
+  amp_selectable_t *sel;
+  //sel = amp_selectable(AMP_HEAP);
+  if (argc > 1)
+    sel = amp_acceptor(AMP_HEAP, "0.0.0.0", "5672");
+  else {
+    amp_connection_t *conn = amp_connection_create();
+    amp_session_t *ssn = amp_session_create();
+    amp_link_t *lnk = amp_link_create(true);
+    amp_link_set_target(lnk, L"queue");
+    amp_connection_add(conn, ssn);
+    amp_session_add(ssn, lnk);
+    amp_connection_open(conn);
+    amp_session_begin(ssn);
+    amp_link_attach(lnk);
+    sel = amp_connector(AMP_HEAP, "0.0.0.0", "5672", conn);
+  }
+  if (!sel) {
+    perror("driver");
+    exit(-1);
+  }
+  amp_driver_add(drv, sel);
+  amp_driver_run(drv);
+  return 0;
+}

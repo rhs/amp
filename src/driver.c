@@ -26,22 +26,16 @@
 #include <time.h>
 #include <amp/type.h>
 #include <amp/list.h>
+#include <amp/driver.h>
 #include "util.h"
 
 /* Decls */
 
-typedef struct {
+struct amp_driver_t {
   AMP_HEAD;
   amp_list_t *selectables;
   amp_region_t *region;
-} amp_driver_t;
-
-AMP_TYPE_DECL(DRIVER, driver)
-
-#define AMP_SEL_RD (0x0001)
-#define AMP_SEL_WR (0x0002)
-
-typedef struct amp_selectable_st amp_selectable_t;
+};
 
 struct amp_selectable_st {
   AMP_HEAD;
@@ -51,12 +45,10 @@ struct amp_selectable_st {
   time_t wakeup;
   void (*readable)(amp_selectable_t *s);
   void (*writable)(amp_selectable_t *s);
-  void (*tick)(amp_selectable_t *s, time_t now);
+  time_t (*tick)(amp_selectable_t *s, time_t now);
   amp_region_t *region;
   void *context;
 };
-
-AMP_TYPE_DECL(SELECTABLE, selectable)
 
 /* Impls */
 
@@ -124,6 +116,10 @@ void amp_driver_run(amp_driver_t *d)
       fds[i].events = (s->status & AMP_SEL_RD ? POLLIN : 0) |
         (s->status & AMP_SEL_WR ? POLLOUT : 0);
       fds[i].revents = 0;
+      if (s->tick) {
+        // XXX
+        s->tick(s, 0);
+      }
     }
 
     DIE_IFE(poll(fds, n, -1));
@@ -187,23 +183,68 @@ struct amp_engine_ctx {
   char output[IO_BUF_SIZE];
 };
 
-void amp_engine_readable(amp_selectable_t *sel)
+void amp_selectable_engine_close(amp_selectable_t *sel)
+{
+  sel->status = 0;
+  if (close(sel->fd) == -1)
+    perror("close");
+  amp_driver_remove(sel->driver, sel);
+  // XXX: need to pass in proper region here
+  amp_allocate(NULL, sel->context, 0);
+}
+
+struct amp_engine_ctx *amp_selectable_engine_read(amp_selectable_t *sel)
 {
   struct amp_engine_ctx *ctx = sel->context;
-  amp_engine_t *engine = ctx->engine;
   int n = recv(sel->fd, ctx->input + ctx->in_size, IO_BUF_SIZE - ctx->in_size, 0);
 
   if (n == 0) {
-    printf("disconnected");
-    sel->status = 0;
-    if (close(sel->fd) == -1)
-      perror("close");
-    amp_driver_remove(sel->driver, sel);
+    printf("disconnected\n");
+    amp_selectable_engine_close(sel);
+    return NULL;
   } else {
     ctx->in_size += n;
   }
 
-  amp_engine_input(engine, ctx->input, ctx->in_size);
+  return ctx;
+}
+
+void amp_selectable_engine_consume(struct amp_engine_ctx *ctx, int n)
+{
+  ctx->in_size -= n;
+  memmove(ctx->input, ctx->input + n, ctx->in_size);
+}
+
+void amp_engine_readable_input(struct amp_engine_ctx *ctx)
+{
+  amp_engine_t *engine = ctx->engine;
+  int n = amp_engine_input(engine, ctx->input, ctx->in_size);
+  amp_selectable_engine_consume(ctx, n);
+}
+
+void amp_engine_readable(amp_selectable_t *sel)
+{
+  struct amp_engine_ctx *ctx = amp_selectable_engine_read(sel);
+  if (ctx) amp_engine_readable_input(ctx);
+}
+
+void amp_engine_readable_hdr(amp_selectable_t *sel)
+{
+  struct amp_engine_ctx *ctx = amp_selectable_engine_read(sel);
+
+  if (!ctx)
+    return;
+
+  if (ctx->in_size >= 8) {
+    if (memcmp(ctx->input, "AMQP\x00\x01\x00\x00", 8)) {
+      printf("header missmatch");
+      amp_selectable_engine_close(sel);
+    } else {
+      amp_selectable_engine_consume(ctx, 8);
+      sel->readable = &amp_engine_readable;
+      amp_engine_readable_input(ctx);
+    }
+  }
 }
 
 void amp_engine_writable(amp_selectable_t *sel)
@@ -213,10 +254,7 @@ void amp_engine_writable(amp_selectable_t *sel)
   ssize_t n = amp_engine_output(engine, ctx->output + ctx->out_size, IO_BUF_SIZE - ctx->out_size);
   if (n < 0) {
     printf("internal error");
-    sel->status = 0;
-    if (close(sel->fd) == -1)
-      perror("close");
-    amp_driver_remove(sel->driver, sel);
+    amp_selectable_engine_close(sel);
   } else {
     ctx->out_size += n;
     n = send(sel->fd, ctx->output, ctx->out_size, 0);
@@ -233,18 +271,27 @@ void amp_engine_writable(amp_selectable_t *sel)
   }
 }
 
+time_t amp_selectable_engine_tick(amp_selectable_t *sel, time_t now)
+{
+  struct amp_engine_ctx *ctx = sel->context;
+  amp_engine_t *engine = ctx->engine;
+  return amp_engine_tick(engine, now);
+}
+
 amp_selectable_t *amp_selectable_engine(amp_region_t *mem, int sock,
                                         amp_connection_t *conn)
 {
   amp_selectable_t *sel = amp_selectable(mem);
   sel->fd = sock;
-  sel->readable = &amp_engine_readable;
+  sel->readable = &amp_engine_readable_hdr;
   sel->writable = &amp_engine_writable;
+  sel->tick = &amp_selectable_engine_tick;
   sel->status = AMP_SEL_RD | AMP_SEL_WR;
   struct amp_engine_ctx *ctx = amp_allocate(mem, NULL, sizeof(struct amp_engine_ctx));
   ctx->engine = amp_engine_create(conn);
   ctx->in_size = 0;
-  ctx->out_size = 0;
+  memmove(ctx->output, "AMQP\x00\x01\x00\x00", 8);
+  ctx->out_size = 8;
   sel->context = ctx;
   return sel;
 }
@@ -305,12 +352,15 @@ amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
     return NULL;
 
   amp_selectable_t *s = amp_selectable_engine(mem, sock, conn);
+
+  printf("Connected to %s:%s\n", host, port);
   return s;
 }
 
 void do_accept(amp_selectable_t *s)
 {
   struct sockaddr_in addr = {0};
+  addr.sin_family = AF_INET;
   socklen_t addrlen;
   int sock = accept(s->fd, (struct sockaddr *) &addr, &addrlen);
   if (sock == -1) {
@@ -318,14 +368,17 @@ void do_accept(amp_selectable_t *s)
   } else {
     char host[1024], serv[64];
     int code;
-    if ((code = getnameinfo((struct sockaddr *) &addr, addrlen, host, 1024, serv, 64, 0)))
+    if ((code = getnameinfo((struct sockaddr *) &addr, addrlen, host, 1024, serv, 64, 0))) {
       printf("getnameinfo: %s\n", gai_strerror(code));
-    else
+      if (close(sock) == -1)
+        perror("close");
+    } else {
       printf("accepted from %s:%s\n", host, serv);
-    amp_connection_t *conn = amp_connection_create();
-    amp_selectable_t *a = amp_selectable_engine(s->region, sock, conn);
-    a->status = AMP_SEL_RD | AMP_SEL_WR;
-    amp_driver_add(s->driver, a);
+      amp_connection_t *conn = amp_connection_create();
+      amp_selectable_t *a = amp_selectable_engine(s->region, sock, conn);
+      a->status = AMP_SEL_RD | AMP_SEL_WR;
+      amp_driver_add(s->driver, a);
+    }
   }
 }
 
@@ -357,26 +410,7 @@ amp_selectable_t *amp_acceptor(amp_region_t *mem, char *host, char *port)
   s->readable = &do_accept;
   s->writable = NULL;
   s->status = AMP_SEL_RD;
-  return s;
-}
 
-int main(int argc, char **argv)
-{
-  amp_driver_t *drv = amp_driver(AMP_HEAP);
-  amp_selectable_t *sel;
-  //sel = amp_selectable(AMP_HEAP);
-  if (argc > 1)
-    sel = amp_acceptor(AMP_HEAP, "0.0.0.0", "5672");
-  else {
-    amp_connection_t *conn = amp_connection_create();
-    sel = amp_connector(AMP_HEAP, "0.0.0.0", "5672", conn);
-  }
-  if (!sel) {
-    perror("driver");
-    exit(-1);
-  }
-  amp_driver_add(drv, sel);
-  printf("%s\n", amp_ainspect(drv));
-  amp_driver_run(drv);
-  return 0;
+  printf("Listening on %s:%s\n", host, port);
+  return s;
 }

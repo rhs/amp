@@ -241,7 +241,7 @@ int netpipe(int argc, char **argv)
                               NAME, L"link",
                               HANDLE, 0,
                               ROLE, role,
-                              LOCAL, amp_proto_linkage(region, TARGET, address)));
+                              TARGET, amp_proto_target(region, TARGET, address)));
   amp_box_t *flow;
   if (role == receiver)
     flow = amp_proto_flow(region, LINK_CREDIT, 10);

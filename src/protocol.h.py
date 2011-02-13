@@ -30,6 +30,12 @@ print '#include <amp/map.h>'
 print '#include <amp/box.h>'
 print
 
+for type in TYPES:
+  fidx = 0
+  for f in type.query["field"]:
+    print "#define %s_%s (%s)" % (field_kw(type), field_kw(f), fidx)
+    fidx += 1
+
 kws = []
 
 for type in TYPES:
@@ -57,7 +63,7 @@ for type in TYPES:
   provides = type["@provides"]
   if provides and "frame" in provides:
     desc = type["descriptor"]
-    print "#define %s_NAME (\"%s\")" % (type["@name"].upper(), desc["@name"])
+    print "#define %s_SYM (\"%s\")" % (type["@name"].upper(), desc["@name"])
     hi, lo = [int(x, 0) for x in desc["@code"].split(":")]
     code = (hi << 32) + lo
     print "#define %s_CODE (%s)" % (type["@name"].upper(), code)

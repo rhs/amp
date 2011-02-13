@@ -103,6 +103,7 @@ time_t amp_connection_tick(amp_connection_t *conn, amp_engine_t *eng, time_t now
     if (!conn->open_sent) {
       amp_engine_open(eng, amp_connection_container(conn),
                       amp_connection_hostname(conn));
+      conn->open_sent = true;
     }
 
     int sessions = amp_connection_sessions(conn);
@@ -115,6 +116,7 @@ time_t amp_connection_tick(amp_connection_t *conn, amp_engine_t *eng, time_t now
     if (conn->open_sent && !conn->close_sent)
     {
       amp_engine_close(eng, NULL, NULL);
+      conn->close_sent = true;
     }
   }
 

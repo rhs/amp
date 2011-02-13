@@ -101,9 +101,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   <section name="addressing">
     <type name="source" class="composite" source="map" provides="source">
       <descriptor name="amqp:source:map" code="0x00000000:0x00000028"/>
+      <field name="tag" type="binary"/>
       <field name="address" type="*" requires="address">
         <error name="address-not-found" type="amqp-error" value="not-found"/>
       </field>
+      <field name="durable" type="boolean"/>
+      <field name="expiry-policy" type="link-expiry-policy" default="session"/>
+      <field name="timeout" type="seconds" default="0"/>
       <field name="dynamic" type="*" requires="lifetime-policy"/>
       <field name="distribution-mode" type="symbol" requires="distribution-mode"/>
       <field name="filter" type="filter-set"/>
@@ -113,11 +117,20 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     </type>
     <type name="target" class="composite" source="map" provides="target">
       <descriptor name="amqp:target:map" code="0x00000000:0x00000029"/>
+      <field name="tag" type="binary"/>
       <field name="address" type="*" requires="address">
         <error name="address-not-found" type="amqp-error" value="not-found"/>
       </field>
+      <field name="durable" type="boolean"/>
+      <field name="expiry-policy" type="link-expiry-policy" default="session"/>
+      <field name="timeout" type="seconds" default="0"/>
       <field name="dynamic" type="*" requires="lifetime-policy"/>
       <field name="capabilities" type="symbol" multiple="true"/>
+    </type>
+    <type name="link-expiry-policy" class="restricted" source="symbol">
+      <choice name="session" value="session"/>
+      <choice name="connection" value="connection"/>
+      <choice name="never" value="never"/>
     </type>
     <type name="std-dist-mode" class="restricted" source="symbol" provides="distribution-mode">
       <choice name="move" value="move"/>

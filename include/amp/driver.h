@@ -1,5 +1,5 @@
-#ifndef _AMP_LIST_H
-#define _AMP_LIST_H 1
+#ifndef _AMP_DRIVER_H
+#define _AMP_DRIVER_H 1
 
 /*
  *
@@ -23,26 +23,24 @@
  */
 
 #include <amp/type.h>
+#include <amp/engine.h>
+#include <stdlib.h>
 
-typedef struct {
-  AMP_HEAD;
-  amp_object_t **elements;
-  size_t capacity;
-  size_t size;
-  amp_region_t *region;
-} amp_list_t;
+typedef struct amp_driver_t amp_driver_t;
+typedef struct amp_selectable_st amp_selectable_t;
 
-AMP_ENCODABLE_DECL(LIST, list)
+AMP_TYPE_DECL(DRIVER, driver)
+AMP_TYPE_DECL(SELECTABLE, selectable)
 
-amp_list_t *amp_list(amp_region_t *mem, int capacity);
-amp_object_t *amp_list_get(amp_list_t *l, int index);
-amp_object_t *amp_list_set(amp_list_t *l, int index, amp_object_t *o);
-amp_object_t *amp_list_pop(amp_list_t *l, int index);
-void amp_list_add(amp_list_t *l, amp_object_t *o);
-int amp_list_index(amp_list_t *l, amp_object_t *o);
-bool amp_list_remove(amp_list_t *l, amp_object_t *o);
-void amp_list_fill(amp_list_t *l, amp_object_t *o, int n);
-void amp_list_clear(amp_list_t *l);
-int amp_list_size(amp_list_t *l);
+#define AMP_SEL_RD (0x0001)
+#define AMP_SEL_WR (0x0002)
 
-#endif /* list.h */
+amp_driver_t *amp_driver(amp_region_t *mem);
+amp_selectable_t *amp_acceptor(amp_region_t *mem, char *host, char *port);
+amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
+                                amp_connection_t *conn);
+void amp_driver_add(amp_driver_t *d, amp_selectable_t *s);
+void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s);
+void amp_driver_run(amp_driver_t *d);
+
+#endif /* driver.h */

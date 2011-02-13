@@ -3,6 +3,6 @@
 src/codec/encodings.h
 src/protocol.c
 src/protocol.h
-src/driver
+src/send
 src/test
 src/type_test

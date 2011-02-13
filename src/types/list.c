@@ -178,3 +178,8 @@ void amp_list_fill(amp_list_t *l, amp_object_t *o, int n)
   for (i = 0; i < n; i++)
     amp_list_add(l, o);
 }
+
+void amp_list_clear(amp_list_t *l)
+{
+  l->size = 0;
+}

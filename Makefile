@@ -8,9 +8,12 @@ TYPES_SRC := src/types/allocation.c  src/types/encoder.c  src/types/string.c \
 	src/types/box.c         src/types/map.c      src/types/type.c \
 	src/types/decoder.c     src/types/scalars.c
 PROTOCOL_SRC := src/protocol.c
-ENGINE_SRC := src/engine/engine.c src/engine/connection.c src/engine/session.c src/engine/link.c
+ENGINE_SRC := src/engine/engine.c src/engine/connection.c src/engine/session.c \
+	src/engine/link.c
+DRIVER_SRC := src/driver.c
 
-SRCS := ${TYPES_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} ${ENGINE_SRC}
+SRCS := ${TYPES_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} ${ENGINE_SRC} \
+	${DRIVER_SRC}
 OBJS := ${SRCS:.c=.o}
 HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 	${FRAMING_SRC:src/framing/%.c=include/amp/%.h} \
@@ -19,7 +22,7 @@ HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 	include/amp/engine.h \
 	src/codec/encodings.h
 
-PROGRAMS := src/test src/type_test src/driver
+PROGRAMS := src/send src/test src/type_test
 
 all: ${PROGRAMS}
 
@@ -35,4 +38,5 @@ ${OBJS}: %.o: %.c
 	PYTHONPATH=${PYTHONPATH} ${PYTHON} $< > $@
 
 clean:
-	rm -f ${PROGRAMS} ${OBJS} src/protocol.c src/protocol.h src/codec/encodings.h src/*.pyc
+	rm -f ${PROGRAMS} ${OBJS} src/protocol.c src/protocol.h \
+	src/codec/encodings.h src/*.pyc

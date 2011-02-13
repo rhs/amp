@@ -25,10 +25,11 @@
 
 struct amp_link_t {
   AMP_HEAD;
+  wchar_t *name;
   amp_session_t *session;
   int handle;
-  amp_object_t *local;
-  amp_object_t *remote;
+  amp_object_t *source;
+  amp_object_t *target;
   bool sender;
   bool attached;
   bool attach_sent;
@@ -45,10 +46,11 @@ amp_link_t *amp_link_create(bool sender)
 {
   amp_link_t *o = amp_allocate(AMP_HEAP, NULL, sizeof(amp_link_t));
   o->type = LINK;
+  o->name = L"test-name";
   o->session = NULL;
   o->handle = -1;
-  o->local = NULL;
-  o->remote = NULL;
+  o->source = NULL;
+  o->target = NULL;
   o->sender = sender;
   o->attached = false;
   o->attach_sent = false;
@@ -62,9 +64,25 @@ AMP_DEFAULT_INSPECT(link)
 AMP_DEFAULT_HASH(link)
 AMP_DEFAULT_COMPARE(link)
 
+void amp_link_set_source(amp_link_t *link, wchar_t *source)
+{
+  link->source = source;
+}
+
+void amp_link_set_target(amp_link_t *link, wchar_t *target)
+{
+  link->target = target;
+}
+
 bool amp_link_sender(amp_link_t *link)
 {
   return link->sender;
+}
+
+int amp_link_attach(amp_link_t *link)
+{
+  link->attached = true;
+  return 0;
 }
 
 void amp_link_bind(amp_link_t *link, amp_session_t *ssn, int handle)
@@ -88,8 +106,9 @@ void amp_link_tick(amp_link_t *link, amp_engine_t *eng)
   if (link->attached) {
     if (!link->attach_sent) {
       amp_engine_attach(eng, amp_session_channel(link->session),
-                        !link->sender, link->handle, link->local,
-                        link->remote);
+                        !link->sender, link->name, link->handle, link->source,
+                        link->target);
+      link->attach_sent = true;
     }
 
     if (amp_link_sender(link)) {
@@ -101,8 +120,9 @@ void amp_link_tick(amp_link_t *link, amp_engine_t *eng)
     if (link->attach_sent && !link->detach_sent) {
       amp_engine_detach(eng, amp_session_channel(link->session),
                         link->handle,
-                        link->local, link->remote,
+                        link->source, link->target,
                         NULL, NULL);
+      link->detach_sent = true;
     }
   }
 }

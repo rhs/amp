@@ -69,6 +69,8 @@ CONSTRUCTORS = {
   "timestamp": "ulong"
   }
 
+NULLABLE = set(["string", "symbol"])
+
 def fname(field):
   return field["@name"].replace("-", "_")
 
@@ -90,6 +92,8 @@ def fconstruct(field, expr):
   type = ftype(field)
   if type in CONSTRUCTORS:
     result = "amp_%s(mem, %s)" % (CONSTRUCTORS[type], expr)
+    if type in NULLABLE:
+      result = "%s ? %s : NULL" % (expr, result)
   else:
     result = expr
   if multi(field):

@@ -27,6 +27,7 @@
 #include <amp/symbol.h>
 #include <amp/scalars.h>
 #include <amp/decoder.h>
+#include <amp/string.h>
 #include <string.h>
 #include "../protocol.h"
 
@@ -38,6 +39,8 @@ struct amp_engine_t {
   amp_decoder_t *decoder;
   amp_map_t *dispatch;
 
+  amp_list_t *args;
+  amp_box_t *body;
   amp_encoder_t *encoder;
   char *output;
   size_t available;
@@ -49,7 +52,7 @@ AMP_TYPE_DECL(ENGINE, engine)
 amp_type_t *ENGINE = &AMP_TYPE(engine);
 
 #define __DISPATCH(MAP, NAME)                                           \
-  amp_map_set(MAP, amp_symbol(AMP_HEAP, NAME ## _NAME), amp_byte(AMP_HEAP, NAME)); \
+  amp_map_set(MAP, amp_symbol(AMP_HEAP, NAME ## _SYM), amp_byte(AMP_HEAP, NAME)); \
   amp_map_set(MAP, amp_long(AMP_HEAP, NAME ## _CODE), amp_byte(AMP_HEAP, NAME))
 
 amp_engine_t *amp_engine_create(amp_connection_t *connection)
@@ -74,6 +77,9 @@ amp_engine_t *amp_engine_create(amp_connection_t *connection)
   __DISPATCH(m, END);
   __DISPATCH(m, CLOSE);
 
+
+  o->args = amp_list(AMP_HEAP, 16);
+  o->body = amp_box(AMP_HEAP, NULL, o->args);
   o->encoder = amp_encoder(AMP_HEAP);
   // XXX
   o->capacity = 4*1024;
@@ -100,25 +106,33 @@ void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_box_t *body);
 
 ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
 {
-  amp_frame_t frame;
-  size_t n = amp_read_frame(&frame, src, available);
-  if (n) {
-    amp_decoder_init(engine->decoder, engine->region);
-    int e = amp_read_data(frame.payload, frame.size, decoder, engine->decoder);
-    if (e < 0) {
-      return e;
-    }
+  size_t read = 0;
+  while (true) {
+    amp_frame_t frame;
+    size_t n = amp_read_frame(&frame, src + read, available);
+    if (n) {
+      amp_decoder_init(engine->decoder, engine->region);
+      int e = amp_read_data(frame.payload, frame.size, decoder, engine->decoder);
+      if (e < 0) {
+        return e;
+      }
 
-    if (engine->decoder->size != 1) {
-      // XXX
-    }
+      if (engine->decoder->size != 1) {
+        // XXX
+      }
 
-    amp_box_t *body = engine->decoder->values[0];
-    amp_engine_dispatch(engine, frame.channel, body);
-    amp_region_clear(engine->region);
+      amp_box_t *body = engine->decoder->values[0];
+      amp_engine_dispatch(engine, frame.channel, body);
+      amp_region_clear(engine->region);
+
+      available -= n;
+      read += n;
+    } else {
+      break;
+    }
   }
 
-  return n;
+  return read;
 }
 
 ssize_t amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
@@ -131,15 +145,29 @@ ssize_t amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
   return m;
 }
 
+void amp_engine_init_frame(amp_engine_t *eng, uint32_t frame)
+{
+  amp_list_clear(eng->args);
+  amp_box_set_tag(eng->body, amp_long(eng->region, frame));
+}
+
+void amp_engine_field(amp_engine_t *eng, int index, amp_object_t *arg)
+{
+  int n = amp_list_size(eng->args);
+  if (index >= n)
+    amp_list_fill(eng->args, NULL, index - n + 1);
+  amp_list_set(eng->args, index, arg);
+}
+
 #define BUF_SIZE (1024*1024)
 
-void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch, amp_box_t *body)
+void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch)
 {
   amp_frame_t frame = {0};
   char bytes[BUF_SIZE];
   char *pos = bytes;
   amp_encoder_init(eng->encoder);
-  amp_encode(body, eng->encoder, &pos, pos + BUF_SIZE);
+  amp_encode(eng->body, eng->encoder, &pos, pos + BUF_SIZE);
   frame.channel = ch;
   frame.payload = bytes;
   frame.size = pos - bytes;
@@ -156,9 +184,12 @@ void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch, amp_box_t *body)
 
 int amp_engine_open(amp_engine_t *eng, wchar_t *container_id, wchar_t *hostname)
 {
-  amp_engine_post_frame(eng, 0, amp_proto_open(eng->region,
-                                               CONTAINER_ID, container_id,
-                                               HOSTNAME, hostname));
+  amp_engine_init_frame(eng, OPEN_CODE);
+  if (container_id)
+    amp_engine_field(eng, OPEN_CONTAINER_ID, amp_string(eng->region, container_id));
+  if (hostname)
+    amp_engine_field(eng, OPEN_HOSTNAME, amp_string(eng->region, hostname));
+  amp_engine_post_frame(eng, 0);
   return 0;
 }
 
@@ -167,15 +198,17 @@ void amp_engine_do_open(amp_engine_t *e, amp_list_t *args)
   printf("OPEN: %s\n", amp_ainspect(args));
 }
 
-int amp_engine_begin(amp_engine_t *eng, int channel, int remote_channel)
+int amp_engine_begin(amp_engine_t *eng, int channel, int remote_channel,
+                     sequence_t next_outgoing_id, uint32_t incoming_window,
+                     uint32_t outgoing_window)
 {
-  amp_box_t *begin;
-  if (remote_channel == -1) {
-    begin = amp_proto_begin(eng->region);
-  } else {
-    begin = amp_proto_begin(eng->region, REMOTE_CHANNEL, remote_channel);
-  }
-  amp_engine_post_frame(eng, channel, begin);
+  amp_engine_init_frame(eng, BEGIN_CODE);
+  if (remote_channel != -1)
+    amp_engine_field(eng, BEGIN_REMOTE_CHANNEL, amp_ushort(eng->region, remote_channel));
+  amp_engine_field(eng, BEGIN_NEXT_OUTGOING_ID, amp_uint(eng->region, next_outgoing_id));
+  amp_engine_field(eng, BEGIN_INCOMING_WINDOW, amp_uint(eng->region, incoming_window));
+  amp_engine_field(eng, BEGIN_OUTGOING_WINDOW, amp_uint(eng->region, outgoing_window));
+  amp_engine_post_frame(eng, channel);
   return 0;
 }
 
@@ -185,11 +218,22 @@ void amp_engine_do_begin(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 }
 
 int amp_engine_attach(amp_engine_t *eng, uint16_t channel, bool role,
-                      int handle, amp_object_t *local, amp_object_t *remote)
+                      wchar_t *name, int handle, wchar_t *source,
+                      wchar_t *target)
 {
-  amp_box_t *attach = amp_proto_attach(eng->region, ROLE, role, HANDLE, handle,
-                                       LOCAL, local, REMOTE, remote);
-  amp_engine_post_frame(eng, channel, attach);
+  amp_engine_init_frame(eng, ATTACH_CODE);
+  amp_engine_field(eng, ATTACH_ROLE, amp_boolean(eng->region, role));
+  amp_engine_field(eng, ATTACH_NAME, amp_string(eng->region, name));
+  amp_engine_field(eng, ATTACH_HANDLE, amp_uint(eng->region, handle));
+  if (source)
+    amp_engine_field(eng, ATTACH_SOURCE,
+                     amp_proto_source(eng->region,
+                                      ADDRESS, amp_string(eng->region, source)));
+  if (target)
+    amp_engine_field(eng, ATTACH_TARGET,
+                     amp_proto_target(eng->region,
+                                      ADDRESS, amp_string(eng->region, target)));
+  amp_engine_post_frame(eng, channel);
   return 0;
 }
 
@@ -213,14 +257,29 @@ void amp_engine_do_disposition(amp_engine_t *e, uint16_t channel, amp_list_t *ar
   printf("DISP: %s\n", amp_ainspect(args));
 }
 
-int amp_engine_detach(amp_engine_t *eng, int channel, int handle, amp_object_t *local,
-                      amp_object_t *remote, char *condition, wchar_t *description)
+int amp_engine_detach(amp_engine_t *eng, int channel, int handle, wchar_t *source,
+                      wchar_t *target, char *condition, wchar_t *description)
 {
-  amp_box_t *detach = amp_proto_detach(eng->region, HANDLE, handle,
-                                       LOCAL, local, REMOTE, remote,
-                                       CONDITION, condition,
-                                       DESCRIPTION, description);
-  amp_engine_post_frame(eng, channel, detach);
+  amp_engine_init_frame(eng, DETACH_CODE);
+  amp_engine_field(eng, DETACH_HANDLE, amp_uint(eng->region, handle));
+  if (source)
+    amp_engine_field(eng, DETACH_SOURCE,
+                     amp_proto_source(eng->region,
+                                      ADDRESS, amp_string(eng->region, source)));
+  if (target)
+    amp_engine_field(eng, DETACH_TARGET,
+                     amp_proto_target(eng->region,
+                                      ADDRESS, amp_string(eng->region, target)));
+  amp_box_t *error;
+  if (condition) {
+    error = amp_proto_error(eng->region, CONDITION, condition,
+                            DESCRIPTION, description);
+  } else {
+    error = NULL;
+  }
+  if (error)
+    amp_engine_field(eng, DETACH_ERROR, error);
+  amp_engine_post_frame(eng, channel);
   return 0;
 }
 
@@ -235,11 +294,14 @@ int amp_engine_end(amp_engine_t *eng, int channel, char *condition,
   amp_box_t *error;
   if (condition) {
     error = amp_proto_error(eng->region, CONDITION, condition,
-                                       DESCRIPTION, description);
+                            DESCRIPTION, description);
   } else {
     error = NULL;
   }
-  amp_engine_post_frame(eng, channel, amp_proto_end(eng->region, ERROR, error));
+  amp_engine_init_frame(eng, END_CODE);
+  if (error)
+    amp_engine_field(eng, DETACH_ERROR, error);
+  amp_engine_post_frame(eng, channel);
   return 0;
 }
 
@@ -257,7 +319,10 @@ int amp_engine_close(amp_engine_t *eng, char *condition, wchar_t *description)
   } else{
     error = NULL;
   }
-  amp_engine_post_frame(eng, 0, amp_proto_close(eng->region, ERROR, error));
+  amp_engine_init_frame(eng, CLOSE_CODE);
+  if (error)
+    amp_engine_field(eng, CLOSE_ERROR, error);
+  amp_engine_post_frame(eng, 0);
   return 0;
 }
 

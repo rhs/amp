@@ -35,6 +35,10 @@ struct amp_session_t {
   bool begin_rcvd;
   bool end_sent;
   bool end_rcvd;
+  sequence_t next_incoming_id;
+  uint32_t incoming_window;
+  sequence_t next_outgoing_id;
+  uint32_t outgoing_window;
 };
 
 AMP_TYPE_DECL(SESSION, session)
@@ -54,12 +58,21 @@ amp_session_t *amp_session_create()
   o->begin_rcvd = false;
   o->end_sent = false;
   o->end_rcvd = false;
+  o->incoming_window = 65536;
+  o->next_outgoing_id = 0;
+  o->outgoing_window = 65536;
   return o;
 }
 
 AMP_DEFAULT_INSPECT(session)
 AMP_DEFAULT_HASH(session)
 AMP_DEFAULT_COMPARE(session)
+
+int amp_session_begin(amp_session_t *session)
+{
+  session->begun = true;
+  return 0;
+}
 
 int amp_session_channel(amp_session_t *session)
 {
@@ -93,7 +106,10 @@ void amp_session_tick(amp_session_t *ssn, amp_engine_t *eng)
 {
   if (ssn->begun) {
     if (!ssn->begin_sent) {
-      amp_engine_begin(eng, ssn->channel, ssn->remote_channel);
+      amp_engine_begin(eng, ssn->channel, ssn->remote_channel,
+                       ssn->next_outgoing_id, ssn->incoming_window,
+                       ssn->outgoing_window);
+      ssn->begin_sent = true;
     }
 
     int links = amp_session_links(ssn);
@@ -104,6 +120,7 @@ void amp_session_tick(amp_session_t *ssn, amp_engine_t *eng)
   } else {
     if (ssn->begin_sent && !ssn->end_sent) {
       amp_engine_end(eng, ssn->channel, NULL, NULL);
+      ssn->end_sent = true;
     }
   }
 }
