@@ -22,26 +22,39 @@
 #define _GNU_SOURCE
 
 #include <stdio.h>
+#include <string.h>
 #include <amp/driver.h>
 
 int main(int argc, char **argv)
 {
   amp_driver_t *drv = amp_driver(AMP_HEAP);
   amp_selectable_t *sel;
-  //sel = amp_selectable(AMP_HEAP);
-  if (argc > 1)
-    sel = amp_acceptor(AMP_HEAP, "0.0.0.0", "5672");
-  else {
+  if (argc > 1) {
     amp_connection_t *conn = amp_connection_create();
     amp_session_t *ssn = amp_session_create();
-    amp_link_t *lnk = amp_link_create(true);
-    amp_link_set_target(lnk, L"queue");
+    bool send = !strcmp(argv[1], "send");
+    amp_link_t *lnk = amp_link_create(send);
+    if (send) {
+      amp_link_set_target(lnk, L"queue");
+    } else {
+      amp_link_set_source(lnk, L"queue");
+    }
     amp_connection_add(conn, ssn);
     amp_session_add(ssn, lnk);
     amp_connection_open(conn);
     amp_session_begin(ssn);
     amp_link_attach(lnk);
+    if (send) {
+      amp_link_send(lnk, "testing", 7);
+      amp_link_send(lnk, "one", 3);
+      amp_link_send(lnk, "two", 3);
+      amp_link_send(lnk, "three", 5);
+    } else {
+      amp_link_flow(lnk, 10);
+    }
     sel = amp_connector(AMP_HEAP, "0.0.0.0", "5672", conn);
+  } else {
+    sel = amp_acceptor(AMP_HEAP, "0.0.0.0", "5672");
   }
   if (!sel) {
     perror("driver");

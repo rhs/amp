@@ -79,6 +79,31 @@ int amp_session_channel(amp_session_t *session)
   return session->channel;
 }
 
+sequence_t amp_session_next(amp_session_t *session)
+{
+  return session->next_outgoing_id++;
+}
+
+sequence_t amp_session_in_next(amp_session_t *session)
+{
+  return session->next_incoming_id;
+}
+
+int amp_session_in_win(amp_session_t *session)
+{
+  return session->incoming_window;
+}
+
+sequence_t amp_session_out_next(amp_session_t *session)
+{
+  return session->next_outgoing_id;
+}
+
+int amp_session_out_win(amp_session_t *session)
+{
+  return session->outgoing_window;
+}
+
 int amp_session_links(amp_session_t *session)
 {
   return amp_list_size(session->links);

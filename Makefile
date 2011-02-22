@@ -22,7 +22,7 @@ HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 	include/amp/engine.h \
 	src/codec/encodings.h
 
-PROGRAMS := src/send src/test src/type_test
+PROGRAMS := src/amp src/test src/type_test
 
 all: ${PROGRAMS}
 

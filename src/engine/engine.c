@@ -218,13 +218,14 @@ void amp_engine_do_begin(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 }
 
 int amp_engine_attach(amp_engine_t *eng, uint16_t channel, bool role,
-                      wchar_t *name, int handle, wchar_t *source,
-                      wchar_t *target)
+                      wchar_t *name, int handle, sequence_t initial_transfer_count,
+                      wchar_t *source, wchar_t *target)
 {
   amp_engine_init_frame(eng, ATTACH_CODE);
   amp_engine_field(eng, ATTACH_ROLE, amp_boolean(eng->region, role));
   amp_engine_field(eng, ATTACH_NAME, amp_string(eng->region, name));
   amp_engine_field(eng, ATTACH_HANDLE, amp_uint(eng->region, handle));
+  amp_engine_field(eng, ATTACH_INITIAL_TRANSFER_COUNT, amp_uint(eng->region, initial_transfer_count));
   if (source)
     amp_engine_field(eng, ATTACH_SOURCE,
                      amp_proto_source(eng->region,
@@ -242,9 +243,47 @@ void amp_engine_do_attach(amp_engine_t *e, uint16_t channel, amp_list_t *args)
   printf("ATTACH: %s\n", amp_ainspect(args));
 }
 
+int amp_engine_transfer(amp_engine_t *eng, uint16_t channel, int handle,
+                        char *dtag, sequence_t id, char *bytes, size_t n)
+{
+  amp_engine_init_frame(eng, TRANSFER_CODE);
+  amp_engine_field(eng, TRANSFER_HANDLE, amp_uint(eng->region, handle));
+  size_t dn = strlen(dtag);
+  amp_binary_t *bdtag = amp_binary(eng->region, dn);
+  amp_binary_extend(bdtag, dtag, dn);
+  amp_engine_field(eng, TRANSFER_DELIVERY_TAG, bdtag);
+  amp_engine_field(eng, TRANSFER_TRANSFER_ID, amp_uint(eng->region, id));
+  amp_binary_t *body = amp_binary(eng->region, n);
+  amp_binary_extend(body, bytes, n);
+  amp_engine_field(eng, TRANSFER_FRAGMENTS, amp_proto_fragment(eng->region,
+                                                               FIRST, true,
+                                                               LAST, true,
+                                                               FORMAT_CODE, 0,
+                                                               SECTION_NUMBER, 0,
+                                                               PAYLOAD, body));
+  amp_engine_post_frame(eng, channel);
+  return 0;
+}
+
 void amp_engine_do_transfer(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
   printf("TRANSFER: %s\n", amp_ainspect(args));
+}
+
+int amp_engine_flow(amp_engine_t *eng, uint16_t channel, sequence_t in_next,
+                    int in_win, sequence_t out_next, int out_win, int handle,
+                    sequence_t transfer_count, int credit)
+{
+  amp_engine_init_frame(eng, FLOW_CODE);
+  amp_engine_field(eng, FLOW_NEXT_INCOMING_ID, amp_uint(eng->region, in_next));
+  amp_engine_field(eng, FLOW_INCOMING_WINDOW, amp_uint(eng->region, in_win));
+  amp_engine_field(eng, FLOW_NEXT_OUTGOING_ID, amp_uint(eng->region, out_next));
+  amp_engine_field(eng, FLOW_OUTGOING_WINDOW, amp_uint(eng->region, out_win));
+  amp_engine_field(eng, FLOW_HANDLE, amp_uint(eng->region, handle));
+  amp_engine_field(eng, FLOW_TRANSFER_COUNT, amp_uint(eng->region, transfer_count));
+  amp_engine_field(eng, FLOW_LINK_CREDIT, amp_uint(eng->region, credit));
+  amp_engine_post_frame(eng, channel);
+  return 0;
 }
 
 void amp_engine_do_flow(amp_engine_t *e, uint16_t channel, amp_list_t *args)

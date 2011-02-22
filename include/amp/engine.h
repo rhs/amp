@@ -65,8 +65,13 @@ int amp_engine_begin(amp_engine_t *eng, int channel, int remote_channel,
                      sequence_t next_outgoing_id, uint32_t incoming_window,
                      uint32_t outgoing_window);
 int amp_engine_attach(amp_engine_t *eng, uint16_t channel, bool role,
-                      wchar_t *name, int handle, wchar_t *source,
-                      wchar_t *target);
+                      wchar_t *name, int handle, sequence_t initial_transfer_count,
+                      wchar_t *source, wchar_t *target);
+int amp_engine_transfer(amp_engine_t *eng, uint16_t channel, int handle,
+                        char *dtag, sequence_t id, char *bytes, size_t n);
+int amp_engine_flow(amp_engine_t *eng, uint16_t channel, sequence_t in_next,
+                    int in_win, sequence_t out_next, int out_win, int handle,
+                    sequence_t transfer_count, int credit);
 int amp_engine_detach(amp_engine_t *eng, int channel, int handle, wchar_t *source,
                       wchar_t *target, char *condition, wchar_t *description);
 int amp_engine_end(amp_engine_t *eng, int channel, char *condition,
@@ -113,6 +118,11 @@ amp_link_t *amp_session_get_link(amp_session_t *session, int index);
 int amp_session_channel(amp_session_t *session);
 void amp_session_bind(amp_session_t *ssn, amp_connection_t *conn, int channel);
 void amp_session_tick(amp_session_t *ssn, amp_engine_t *eng);
+sequence_t amp_session_next(amp_session_t *session);
+sequence_t amp_session_in_next(amp_session_t *session);
+int amp_session_in_win(amp_session_t *session);
+sequence_t amp_session_out_next(amp_session_t *session);
+int amp_session_out_win(amp_session_t *session);
 
 /* Links */
 amp_link_t *amp_link_create(bool sender);
@@ -131,7 +141,7 @@ int amp_link_detach(amp_link_t *link, ...);
 int amp_link_close(amp_link_t *link, ...);
 
 // sender
-int amp_link_send(amp_link_t *link, ...);
+int amp_link_send(amp_link_t *link, char *bytes, size_t n);
 int amp_link_drained(amp_link_t *link);
 
 // receiver
