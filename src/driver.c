@@ -340,7 +340,7 @@ amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
   struct addrinfo *addr;
   int code = getaddrinfo(host, port, NULL, &addr);
   if (code) {
-    fprintf(stderr, gai_strerror(code));
+    fprintf(stderr, "%s", gai_strerror(code));
     return NULL;
   }
 
@@ -387,7 +387,7 @@ amp_selectable_t *amp_acceptor(amp_region_t *mem, char *host, char *port)
   struct addrinfo *addr;
   int code = getaddrinfo(host, port, NULL, &addr);
   if (code) {
-    fprintf(stderr, gai_strerror(code));
+    fprintf(stderr, "%s", gai_strerror(code));
     return NULL;
   }
 
