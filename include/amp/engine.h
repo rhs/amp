@@ -72,8 +72,8 @@ int amp_engine_transfer(amp_engine_t *eng, uint16_t channel, int handle,
 int amp_engine_flow(amp_engine_t *eng, uint16_t channel, sequence_t in_next,
                     int in_win, sequence_t out_next, int out_win, int handle,
                     sequence_t transfer_count, int credit);
-int amp_engine_detach(amp_engine_t *eng, int channel, int handle, wchar_t *source,
-                      wchar_t *target, char *condition, wchar_t *description);
+int amp_engine_detach(amp_engine_t *eng, int channel, int handle,
+                      char *condition, wchar_t *description);
 int amp_engine_end(amp_engine_t *eng, int channel, char *condition,
                    wchar_t *description);
 int amp_engine_close(amp_engine_t *eng, char *condition, wchar_t *description);

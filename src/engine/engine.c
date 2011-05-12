@@ -258,7 +258,7 @@ int amp_engine_transfer(amp_engine_t *eng, uint16_t channel, int handle,
   amp_engine_field(eng, TRANSFER_FRAGMENTS, amp_proto_fragment(eng->region,
                                                                FIRST, true,
                                                                LAST, true,
-                                                               FORMAT_CODE, 0,
+                                                               SECTION_CODE, 0,
                                                                SECTION_NUMBER, 0,
                                                                PAYLOAD, body));
   amp_engine_post_frame(eng, channel);
@@ -296,19 +296,11 @@ void amp_engine_do_disposition(amp_engine_t *e, uint16_t channel, amp_list_t *ar
   printf("DISP: %s\n", amp_ainspect(args));
 }
 
-int amp_engine_detach(amp_engine_t *eng, int channel, int handle, wchar_t *source,
-                      wchar_t *target, char *condition, wchar_t *description)
+int amp_engine_detach(amp_engine_t *eng, int channel, int handle, char *condition,
+                      wchar_t *description)
 {
   amp_engine_init_frame(eng, DETACH_CODE);
   amp_engine_field(eng, DETACH_HANDLE, amp_uint(eng->region, handle));
-  if (source)
-    amp_engine_field(eng, DETACH_SOURCE,
-                     amp_proto_source(eng->region,
-                                      ADDRESS, amp_string(eng->region, source)));
-  if (target)
-    amp_engine_field(eng, DETACH_TARGET,
-                     amp_proto_target(eng->region,
-                                      ADDRESS, amp_string(eng->region, target)));
   amp_box_t *error;
   if (condition) {
     error = amp_proto_error(eng->region, CONDITION, condition,

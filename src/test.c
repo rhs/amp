@@ -253,7 +253,7 @@ int netpipe(int argc, char **argv)
     amp_list_add(msg, amp_proto_fragment(region,
                                          FIRST, false,
                                          LAST, true,
-                                         FORMAT_CODE, 0,
+                                         SECTION_CODE, 0,
                                          SECTION_OFFSET, (uint64_t) 0));
     send_frame(&pos, limit, enc,
                amp_proto_transfer(region,
@@ -309,7 +309,7 @@ int main(int argc, char **argv)
                                 CONTAINER_ID, L"fdsa",
                                 MAX_FRAME_SIZE, 64*1024,
                                 CHANNEL_MAX, 255,
-                                HEARTBEAT_INTERVAL, 60*60);
+                                IDLE_TIME_OUT, 60*60);
   //printf("%s\n", amp_ainspect(b));
   amp_encoder_t *enc = amp_encoder(AMP_HEAP);
   amp_encoder_init(enc);

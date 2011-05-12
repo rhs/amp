@@ -162,7 +162,6 @@ void amp_link_tick(amp_link_t *link, amp_engine_t *eng)
     if (link->attach_sent && !link->detach_sent) {
       amp_engine_detach(eng, amp_session_channel(link->session),
                         link->handle,
-                        link->source, link->target,
                         NULL, NULL);
       link->detach_sent = true;
     }
