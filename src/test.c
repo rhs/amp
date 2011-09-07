@@ -105,12 +105,12 @@ int codec_main(int argc, char **argv)
   {
     amp_region_clear(region);
     amp_decoder_init(dec, region);
-    n = amp_read_data(bytes, size, decoder, dec);
+    n = amp_read_data(bytes, size, decoder, NULL, dec);
   }
   gettimeofday(&stop, NULL);
   timersub(&stop, &start, &decode);
 
-  amp_read_data(bytes, size, printer, NULL);
+  amp_read_data(bytes, size, printer, NULL, NULL);
   printf("------\n");
   for (i = 0; i < dec->size; i++)
   {
@@ -139,7 +139,7 @@ int piper(int argc, char **argv)
 
     while ((n = amp_read_frame(&frame, bytes, available)))
     {
-      int e = amp_read_data(frame.payload, frame.size, printer, NULL);
+      int e = amp_read_data(frame.payload, frame.size, printer, NULL, NULL);
       if (e) {
         printf("error: %d\n", e);
       }
@@ -246,21 +246,14 @@ int netpipe(int argc, char **argv)
   if (role == receiver)
     flow = amp_proto_flow(region, LINK_CREDIT, 10);
   else
-    flow = amp_proto_flow(region, TRANSFER_COUNT, 0, LINK_CREDIT, 0);
+    flow = amp_proto_flow(region, INITIAL_DELIVERY_COUNT, 0, LINK_CREDIT, 0);
   send_frame(&pos, limit, enc, flow);
   if (role == sender) {
-    amp_list_t *msg = amp_list(region, 4);
-    amp_list_add(msg, amp_proto_fragment(region,
-                                         FIRST, false,
-                                         LAST, true,
-                                         SECTION_CODE, 0,
-                                         SECTION_OFFSET, (uint64_t) 0));
     send_frame(&pos, limit, enc,
                amp_proto_transfer(region,
                                   HANDLE, 0,
-                                  TRANSFER_ID, 0,
-                                  SETTLED, true,
-                                  FRAGMENTS, msg));
+                                  DELIVERY_ID, 0,
+                                  SETTLED, true));
   }
   //send_frame(&pos, limit, enc, amp_proto_detach(region, HANDLE, 0));
   send_frame(&pos, limit, enc, amp_proto_end(region));

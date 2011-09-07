@@ -173,9 +173,6 @@ int amp_write_binary(char **pos, char *limit, size_t size, char *src) {
 int amp_write_utf8(char **pos, char *limit, size_t size, char *utf8) {
   return amp_write_variable(pos, limit, size, utf8, AMPE_STR8_UTF8, AMPE_STR32_UTF8);
 }
-int amp_write_utf16(char **pos, char *limit, size_t size, char *utf16) {
-  return amp_write_variable(pos, limit, size, utf16, AMPE_STR8_UTF16, AMPE_STR32_UTF16);
-}
 int amp_write_symbol(char **pos, char *limit, size_t size, char *symbol) {
   return amp_write_variable(pos, limit, size, symbol, AMPE_SYM8, AMPE_SYM32);
 }
@@ -207,13 +204,14 @@ int amp_write_map(char **pos, char *limit, char *start, size_t count) {
   return amp_write_end(pos, limit, start, 2*count, AMPE_MAP32);
 }
 
-int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx)
+ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*stop)(void *ctx), void *ctx)
 {
   size_t size;
   size_t count;
   conv_t conv;
+  int offset;
 
-  for (int offset = 0; offset < n; )
+  for (offset = 0; offset < n && !(stop && stop(ctx)); )
   {
     uint8_t code = bytes[offset];
     offset += 1;
@@ -231,6 +229,10 @@ int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx)
       break;
     case AMPE_FALSE:
       cb->on_bool(ctx, false);
+      break;
+    case AMPE_BOOLEAN:
+      cb->on_bool(ctx, *(bytes + offset) == 0);
+      offset += 1;
       break;
     case AMPE_UBYTE:
       cb->on_ubyte(ctx, *((uint8_t *) (bytes + offset)));
@@ -251,6 +253,9 @@ int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx)
     case AMPE_UINT:
       cb->on_uint(ctx, ntohl(*((uint32_t *) (bytes + offset))));
       offset += 4;
+      break;
+    case AMPE_UINT0:
+      cb->on_uint(ctx, 0);
       break;
     case AMPE_INT:
       cb->on_int(ctx, ntohl(*((uint32_t *) (bytes + offset))));
@@ -290,13 +295,14 @@ int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx)
       }
 
       break;
+    case AMPE_ULONG0:
+      cb->on_ulong(ctx, 0);
+      break;
     case AMPE_VBIN8:
     case AMPE_STR8_UTF8:
-    case AMPE_STR8_UTF16:
     case AMPE_SYM8:
     case AMPE_VBIN32:
     case AMPE_STR32_UTF8:
-    case AMPE_STR32_UTF16:
     case AMPE_SYM32:
       switch (code & 0xF0)
       {
@@ -335,6 +341,10 @@ int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx)
 
       offset += size;
       break;
+    case AMPE_LIST0:
+        count = 0;
+        cb->on_list(ctx, count);
+        break;
     case AMPE_LIST8:
     case AMPE_LIST32:
     case AMPE_MAP8:
@@ -370,11 +380,12 @@ int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx)
       }
       break;
     default:
+      printf("Unrecognised typecode: %u\n", code);
       return -6;
     }
   }
 
-  return 0;
+  return offset;
 }
 
 void noop_null(void *ctx) {}

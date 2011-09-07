@@ -43,7 +43,6 @@ int amp_write_long(char **pos, char *limit, int64_t v);
 int amp_write_double(char **pos, char *limit, double v);
 int amp_write_binary(char **pos, char *limit, size_t size, char *src);
 int amp_write_utf8(char **pos, char *limit, size_t size, char *utf8);
-int amp_write_utf16(char **pos, char *limit, size_t size, char *utf16);
 int amp_write_symbol(char **pos, char *limit, size_t size, char *symbol);
 int amp_write_start(char **pos, char *limit, char **start);
 int amp_write_list(char **pos, char *limit, char *start, size_t count);
@@ -71,7 +70,7 @@ typedef struct {
   void (*on_descriptor)(void *ctx);
 } amp_data_callbacks_t;
 
-int amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx);
+ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*stop_function)(void *ctx), void *ctx);
 
 #define AMP_DATA_CALLBACKS(STEM) ((amp_data_callbacks_t) { \
   .on_null = & STEM ## _null,                              \

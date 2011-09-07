@@ -180,7 +180,7 @@ void amp_fatal(amp_object_t *o, const char *msg, ...)
   va_list ap;
 
   va_start(ap, msg);
-  fprintf(stderr, "%s(%s): ", amp_ainspect(o), amp_type(o)->name);
+  fprintf(stderr, "%s(%s): ", amp_ainspect(o), o ? amp_type(o)->name : "NULL");
   vfprintf(stderr, msg, ap);
   fprintf(stderr, "\n");
   va_end(ap);

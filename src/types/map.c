@@ -26,6 +26,8 @@ amp_type_t *MAP = &AMP_ENCODABLE(map);
 
 amp_map_t *amp_map(amp_region_t *mem, int buckets)
 {
+  if (buckets <= 0)
+    buckets = 1;
   amp_map_t *o = amp_allocate(mem, NULL, sizeof(amp_map_t));
   o->type = MAP;
   o->size = 0;
