@@ -231,7 +231,7 @@ ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*st
       cb->on_bool(ctx, false);
       break;
     case AMPE_BOOLEAN:
-      cb->on_bool(ctx, *(bytes + offset) == 0);
+      cb->on_bool(ctx, *(bytes + offset) != 0);
       offset += 1;
       break;
     case AMPE_UBYTE:
