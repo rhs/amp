@@ -1,6 +1,6 @@
 CFLAGS := -Wall -Werror -pedantic-errors -std=c99 -g -Iinclude
 PYTHON := python
-PYTHONPATH := ${PWD}
+PYTHONPATH := ${realpath .}
 CODEC_SRC := src/codec/codec.c
 FRAMING_SRC := src/framing/framing.c
 TYPES_SRC := src/types/allocation.c  src/types/encoder.c  src/types/string.c \
