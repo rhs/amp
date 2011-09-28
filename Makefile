@@ -17,6 +17,7 @@ DRIVER_SRC := src/driver.c
 SRCS := ${TYPES_SRC} ${VALUE_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} \
 	${ENGINE_SRC} ${DRIVER_SRC}
 OBJS := ${SRCS:.c=.o}
+DEPS := ${OBJS:.o=.d}
 HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 	${VALUE_HDR} \
 	${FRAMING_SRC:src/framing/%.c=include/amp/%.h} \
@@ -27,12 +28,16 @@ HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 
 PROGRAMS := src/amp src/test src/type_test
 
+# pull in dependency info for *existing* .o files
+-include ${DEPS}
+
 all: ${PROGRAMS}
 
 ${PROGRAMS}: ${OBJS}
 
 ${OBJS}: ${HDRS}
 ${OBJS}: %.o: %.c
+	gcc -c -MMD -MP $(CFLAGS) $*.c -o $*.o
 
 %.h: %.h.py
 	PYTHONPATH=${PYTHONPATH} ${PYTHON} $< > $@
@@ -41,5 +46,5 @@ ${OBJS}: %.o: %.c
 	PYTHONPATH=${PYTHONPATH} ${PYTHON} $< > $@
 
 clean:
-	rm -f ${PROGRAMS} ${OBJS} src/protocol.c src/protocol.h \
+	rm -f ${PROGRAMS} ${OBJS} ${DEPS} src/protocol.c src/protocol.h \
 	src/codec/encodings.h src/*.pyc
