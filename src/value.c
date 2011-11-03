@@ -20,6 +20,7 @@
  */
 
 #include <amp/value.h>
+#include <amp/codec.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -27,6 +28,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <iconv.h>
+#include <arpa/inet.h>
+#include "codec/encodings.h"
 
 int amp_compare_string(amp_string_t a, amp_string_t b)
 {
@@ -232,6 +236,70 @@ static char type_to_code(enum TYPE type)
   }
 }
 
+static uint8_t type_to_amqp_code(enum TYPE type)
+{
+  switch (type)
+  {
+  case EMPTY: return AMPE_NULL;
+  case BOOLEAN: return AMPE_BOOLEAN;
+  case BYTE: return AMPE_BYTE;
+  case UBYTE: return AMPE_UBYTE;
+  case SHORT: return AMPE_SHORT;
+  case USHORT: return AMPE_USHORT;
+  case INT: return AMPE_INT;
+  case UINT: return AMPE_UINT;
+  case CHAR: return AMPE_UTF32;
+  case LONG: return AMPE_LONG;
+  case ULONG: return AMPE_ULONG;
+  case FLOAT: return AMPE_FLOAT;
+  case DOUBLE: return AMPE_DOUBLE;
+  case STRING: return AMPE_STR32_UTF8;
+  case BINARY: return AMPE_VBIN32;
+  case LIST: return AMPE_LIST32;
+  case MAP: return AMPE_MAP32;
+  case ARRAY: return AMPE_ARRAY32;
+  case TAG: return -1;
+  }
+  return -1;
+}
+
+static enum TYPE amqp_code_to_type(uint8_t code)
+{
+  switch (code)
+  {
+  case AMPE_NULL: return EMPTY;
+    //  case AMPE_TRUE:
+    //  case AMPE_FALSE:
+    //  case AMPE_BOOLEAN: return BOOLEAN;
+  case AMPE_UBYTE: return UBYTE;
+  case AMPE_BYTE: return BYTE;
+  case AMPE_USHORT: return USHORT;
+  case AMPE_SHORT: return SHORT;
+  case AMPE_UINT:
+  case AMPE_UINT0: return UINT;
+  case AMPE_INT: return INT;
+  case AMPE_FLOAT: return FLOAT;
+  case AMPE_ULONG0:
+  case AMPE_ULONG: return ULONG;
+  case AMPE_LONG: return LONG;
+  case AMPE_DOUBLE: return DOUBLE;
+  case AMPE_VBIN8:
+  case AMPE_VBIN32: return BINARY;
+  case AMPE_STR8_UTF8:
+  case AMPE_STR32_UTF8: return STRING;
+    //  case AMPE_SYM8:
+    //  case AMPE_SYM32: return SYMBOL;
+  case AMPE_LIST0:
+  case AMPE_LIST8:
+  case AMPE_LIST32: return LIST;
+  case AMPE_ARRAY8:
+  case AMPE_ARRAY32: return ARRAY;
+  case AMPE_MAP8:
+  case AMPE_MAP32: return MAP;
+  }
+  return -1;
+}
+
 typedef struct stack_frame_st {
   amp_value_t *value;
   int count;
@@ -330,6 +398,8 @@ int amp_vscan(amp_value_t *value, const char *fmt, va_list ap)
       value = stack[--level].value;
       break;
     case '(':
+      // XXX: need to figure out how to detect missing descriptor value here
+      // XXX: also, decrementing count may not work when nested
       value--;
       count--;
       amp_tag_t *tag = amp_tag(*value, EMPTY_VALUE);
@@ -350,6 +420,9 @@ int amp_vscan(amp_value_t *value, const char *fmt, va_list ap)
       value = value->u.as_array->values;
       level++;
       continue;
+    default:
+      fprintf(stderr, "unrecognized type: %c\n", *fmt);
+      return -1;
     }
 
     value++;
@@ -408,10 +481,10 @@ int amp_format_binary(char **pos, char *limit, amp_binary_t binary)
 {
   for (int i = 0; i < binary.size; i++)
   {
-    char c = binary.bytes[i];
-    if (isprint(c)) {
+    uint8_t b = binary.bytes[i];
+    if (isprint(b)) {
       if (*pos < limit) {
-        **pos = c;
+        **pos = b;
         *pos += 1;
       } else {
         return -1;
@@ -419,7 +492,7 @@ int amp_format_binary(char **pos, char *limit, amp_binary_t binary)
     } else {
       if (limit - *pos > 4)
       {
-        sprintf(*pos, "\\x%.2x", c);
+        sprintf(*pos, "\\x%.2x", b);
         *pos += 4;
       } else {
         return -1;
@@ -463,6 +536,13 @@ int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n)
     {
     case EMPTY:
       if ((e = amp_fmt(pos, limit, "NULL"))) return e;
+      break;
+    case BOOLEAN:
+      if (v.u.as_boolean) {
+        if ((e = amp_fmt(pos, limit, "true"))) return e;
+      } else {
+        if ((e = amp_fmt(pos, limit, "false"))) return e;
+      }
       break;
     case BYTE:
       if ((e = amp_fmt(pos, limit, "%hhi", v.u.as_byte))) return e;
@@ -521,14 +601,155 @@ int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n)
   return 0;
 }
 
+char *amp_aformat(amp_value_t v)
+{
+  int size = 16;
+  while (true)
+  {
+    char *buf = malloc(size);
+    char *pos = buf;
+    if (!buf) return NULL;
+    int n = amp_format_value(&pos, buf + size, &v, 1);
+    if (!n) {
+      pos[0] = '\0';
+      return buf;
+    } else if (n == -1) {
+      size *= 2;
+      free(buf);
+    } else {
+      // XXX
+      free(buf);
+      return NULL;
+    }
+  }
+}
+
+size_t amp_vencode_sizeof(amp_value_t v)
+{
+  switch (v.type)
+  {
+  case EMPTY:
+    return 1;
+  case BOOLEAN:
+  case BYTE:
+  case UBYTE:
+    return 2;
+  case SHORT:
+  case USHORT:
+    return 3;
+  case INT:
+  case UINT:
+  case CHAR:
+  case FLOAT:
+    return 5;
+  case LONG:
+  case ULONG:
+  case DOUBLE:
+    return 9;
+  case STRING:
+    return 5 + 4*v.u.as_string.size;
+  case BINARY:
+    return 5 + v.u.as_binary.size;
+  case ARRAY:
+    return amp_vencode_sizeof_array(v.u.as_array);
+  case LIST:
+    return amp_vencode_sizeof_list(v.u.as_list);
+  case MAP:
+    return amp_vencode_sizeof_map(v.u.as_map);
+  case TAG:
+    return amp_vencode_sizeof_tag(v.u.as_tag);
+  }
+
+  // XXX: fatal error
+  return 0;
+}
+
+size_t amp_vencode(amp_value_t v, char *out)
+{
+  char *old = out;
+  size_t size = amp_vencode_sizeof(v);
+  iconv_t cd;
+  char *inbuf;
+  size_t insize;
+  char *outbuf;
+  size_t utfsize;
+
+  switch (v.type)
+  {
+  case EMPTY:
+    amp_write_null(&out, out + size);
+    return 1;
+  case BOOLEAN:
+    amp_write_boolean(&out, out + size, v.u.as_boolean);
+    return 2;
+  case BYTE:
+    amp_write_byte(&out, out + size, v.u.as_byte);
+    return 2;
+  case UBYTE:
+    amp_write_ubyte(&out, out + size, v.u.as_ubyte);
+    return 2;
+  case SHORT:
+    amp_write_short(&out, out + size, v.u.as_short);
+    return 3;
+  case USHORT:
+    amp_write_ushort(&out, out + size, v.u.as_ushort);
+    return 3;
+  case INT:
+    amp_write_int(&out, out + size, v.u.as_int);
+    return 5;
+  case UINT:
+    amp_write_uint(&out, out + size, v.u.as_uint);
+    return 5;
+  case CHAR:
+    amp_write_char(&out, out + size, v.u.as_char);
+    return 5;
+  case FLOAT:
+    amp_write_float(&out, out + size, v.u.as_float);
+    return 5;
+  case LONG:
+    amp_write_long(&out, out + size, v.u.as_long);
+    return 9;
+  case ULONG:
+    amp_write_ulong(&out, out + size, v.u.as_ulong);
+    return 9;
+  case DOUBLE:
+    amp_write_double(&out, out + size, v.u.as_double);
+    return 9;
+  case STRING:
+    cd = iconv_open("UTF-8", "WCHAR_T");
+    insize = 4*v.u.as_string.size;
+    inbuf = (char *)v.u.as_string.wcs;
+    outbuf = out + 5;
+    utfsize = iconv(cd, &inbuf, &insize, &outbuf, &size);
+    iconv_close(cd);
+    amp_write_utf8(&out, out + size, outbuf - out - 5, out + 5);
+    return out - old;
+  case BINARY:
+    amp_write_binary(&out, out + size, v.u.as_binary.size, v.u.as_binary.bytes);
+    return 5 + v.u.as_binary.size;
+  case ARRAY:
+    return amp_vencode_array(v.u.as_array, out);
+  case LIST:
+    return amp_vencode_list(v.u.as_list, out);
+  case MAP:
+    return amp_vencode_map(v.u.as_map, out);
+  case TAG:
+    return amp_vencode_tag(v.u.as_tag, out);
+  }
+
+  return 0;
+}
+
 /* arrays */
 
 amp_array_t *amp_array(enum TYPE type, int capacity)
 {
   amp_array_t *l = malloc(sizeof(amp_array_t) + capacity*sizeof(amp_value_t));
-  l->type = type;
-  l->capacity = capacity;
-  l->size = 0;
+  if (l) {
+    l->type = type;
+    l->capacity = capacity;
+    l->size = 0;
+  }
   return l;
 }
 
@@ -541,13 +762,50 @@ int amp_format_array(char **pos, char *limit, amp_array_t *array)
   return 0;
 }
 
+size_t amp_vencode_sizeof_array(amp_array_t *array)
+{
+  size_t result = 9;
+  for (int i = 0; i < array->size; i++)
+  {
+    // XXX: this is wrong, need to compensate for code
+    result += amp_vencode_sizeof(array->values[i]);
+  }
+  return result;
+}
+
+size_t amp_vencode_array(amp_array_t *array, char *out)
+{
+  // code
+  out[0] = (uint8_t) AMPE_ARRAY32;
+  // size will be backfilled
+  // count
+  *((uint32_t *) (out + 5)) = htonl(array->size);
+  // element code
+  out[9] = (uint8_t) type_to_amqp_code(array->type);
+
+  char *vout = out + 10;
+  for (int i = 0; i < array->size; i++)
+  {
+    char *codeptr = vout - 1;
+    char codeval = *codeptr;
+    vout += amp_vencode(array->values[i], vout-1) - 1;
+    *codeptr = codeval;
+  }
+
+  // backfill size
+  *((uint32_t *) (out + 1)) = htonl(vout - out - 5);
+  return vout - out;
+}
+
 /* lists */
 
 amp_list_t *amp_vlist(int capacity)
 {
   amp_list_t *l = malloc(sizeof(amp_list_t) + capacity*sizeof(amp_value_t));
-  l->capacity = capacity;
-  l->size = 0;
+  if (l) {
+    l->capacity = capacity;
+    l->size = 0;
+  }
   return l;
 }
 
@@ -581,6 +839,7 @@ amp_value_t amp_vlist_pop(amp_list_t *l, int index)
 int amp_vlist_add(amp_list_t *l, amp_value_t v)
 {
   if (l->capacity <= l->size) {
+    fprintf(stderr, "wah!\n");
     return -1;
   }
 
@@ -676,6 +935,30 @@ int amp_compare_list(amp_list_t *a, amp_list_t *b)
   }
 
   return 0;
+}
+
+size_t amp_vencode_sizeof_list(amp_list_t *l)
+{
+  size_t result = 9;
+  for (int i = 0; i < l->size; i++)
+  {
+    result += amp_vencode_sizeof(l->values[i]);
+  }
+  return result;
+}
+
+size_t amp_vencode_list(amp_list_t *l, char *out)
+{
+  char *old = out;
+  char *start;
+  // XXX
+  amp_write_start(&out, out + 1024, &start);
+  for (int i = 0; i < l->size; i++)
+  {
+    out += amp_vencode(l->values[i], out);
+  }
+  amp_write_list(&out, out + 1024, start, l->size);
+  return out - old;
 }
 
 /* maps */
@@ -834,6 +1117,31 @@ int amp_vmap_capacity(amp_map_t *map)
   return map->capacity;
 }
 
+size_t amp_vencode_sizeof_map(amp_map_t *m)
+{
+  size_t result = 0;
+  for (int i = 0; i < 2*m->size; i++)
+  {
+    result += amp_vencode_sizeof(m->pairs[i]);
+  }
+  return result;
+}
+
+size_t amp_vencode_map(amp_map_t *m, char *out)
+{
+  char *old = out;
+  char *start;
+  int count = 2*m->size;
+  // XXX
+  amp_write_start(&out, out + 1024, &start);
+  for (int i = 0; i < count; i++)
+  {
+    out += amp_vencode(m->pairs[i], out);
+  }
+  amp_write_map(&out, out + 1024, start, m->size);
+  return out - old;
+}
+
 /* tags */
 
 amp_tag_t *amp_tag(amp_value_t descriptor, amp_value_t value)
@@ -864,4 +1172,215 @@ int amp_format_tag(char **pos, char *limit, amp_tag_t *tag)
   if ((e = amp_fmt(pos, limit, ")"))) return e;
 
   return 0;
+}
+
+size_t amp_vencode_sizeof_tag(amp_tag_t *t)
+{
+  return 1 + amp_vencode_sizeof(t->descriptor) + amp_vencode_sizeof(t->value);
+}
+
+size_t amp_vencode_tag(amp_tag_t *t, char *out)
+{
+  size_t size = 1;
+  amp_write_descriptor(&out, out + 1);
+  size += amp_vencode(t->descriptor, out);
+  size += amp_vencode(t->value, out + size - 1);
+  return size;
+}
+
+/* decode */
+
+struct amp_vdecode_context_frame_st {
+  size_t count;
+  size_t limit;
+  amp_value_t *values;
+};
+
+struct amp_vdecode_context_st {
+  size_t depth;
+  struct amp_vdecode_context_frame_st frames[1024];
+};
+
+#define CTX_CAST(ctx) ((struct amp_vdecode_context_st *) (ctx))
+
+static amp_value_t *push_frame(void *ptr, amp_value_t *values, size_t limit)
+{
+  struct amp_vdecode_context_st *ctx = CTX_CAST(ptr);
+  struct amp_vdecode_context_frame_st *old = &ctx->frames[ctx->depth - 1];
+  struct amp_vdecode_context_frame_st *frm = &ctx->frames[ctx->depth++];
+  frm->count = 0;
+  frm->limit = limit;
+  frm->values = values;
+  return &old->values[old->count];
+}
+
+static void pop_frame(void *ptr)
+{
+  struct amp_vdecode_context_st *ctx = CTX_CAST(ptr);
+  ctx->depth--;
+}
+
+static amp_value_t *next_value(void *ptr)
+{
+  struct amp_vdecode_context_st *ctx = CTX_CAST(ptr);
+  struct amp_vdecode_context_frame_st *frm = &ctx->frames[ctx->depth-1];
+  amp_value_t *result = &frm->values[frm->count];
+  frm->count++;
+  if (frm->count == frm->limit) {
+    pop_frame(ptr);
+  }
+  return result;
+}
+
+void amp_vdecode_null(void *ctx) {
+  amp_value_t *value = next_value(ctx);
+  value->type = EMPTY;
+}
+void amp_vdecode_bool(void *ctx, bool v) {
+  //amp_value_t *value = VALUE(ctx);
+  //  value->type = BOOLEAN;
+  //  value->u.as_bool = v;
+}
+void amp_vdecode_ubyte(void *ctx, uint8_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = UBYTE;
+  value->u.as_ubyte = v;
+}
+void amp_vdecode_byte(void *ctx, int8_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = BYTE;
+  value->u.as_byte = v;
+}
+void amp_vdecode_ushort(void *ctx, uint16_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = USHORT;
+  value->u.as_ushort = v;
+}
+void amp_vdecode_short(void *ctx, int16_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = SHORT;
+  value->u.as_short = v;
+}
+void amp_vdecode_uint(void *ctx, uint32_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = UINT;
+  value->u.as_uint = v;
+}
+void amp_vdecode_int(void *ctx, int32_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = INT;
+  value->u.as_int = v;
+}
+void amp_vdecode_float(void *ctx, float f) {
+  amp_value_t *value = next_value(ctx);
+  value->type = FLOAT;
+  value->u.as_float = f;
+}
+void amp_vdecode_ulong(void *ctx, uint64_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = ULONG;
+  value->u.as_ulong = v;
+}
+void amp_vdecode_long(void *ctx, int64_t v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = LONG;
+  value->u.as_long = v;
+}
+void amp_vdecode_double(void *ctx, double v) {
+  amp_value_t *value = next_value(ctx);
+  value->type = DOUBLE;
+  value->u.as_double = v;
+}
+void amp_vdecode_binary(void *ctx, size_t size, char *bytes) {
+  amp_value_t *value = next_value(ctx);
+  value->type = BINARY;
+  value->u.as_binary = (amp_binary_t) {.size = size, .bytes = bytes};
+}
+void amp_vdecode_utf8(void *ctx, size_t size, char *bytes) {
+  amp_value_t *value = next_value(ctx);
+  value->type = STRING;
+  // XXX: this is a leak
+  size_t remaining = (size+1)*sizeof(wchar_t);
+  wchar_t *buf = malloc(remaining);
+  iconv_t cd = iconv_open("WCHAR_T", "UTF-8");
+  wchar_t *out = buf;
+  size_t n = iconv(cd, &bytes, &size, (char **)&out, &remaining);
+  if (n == -1)
+  {
+    perror("amp_vdecode_utf8");
+  }
+  *out = L'\0';
+  iconv_close(cd);
+  value->u.as_string = (amp_string_t) {.size = wcslen(buf), .wcs = buf};
+}
+void amp_vdecode_utf16(void *ctx, size_t size, char *bytes) {
+  // XXX: this encoding no longer exists
+}
+void amp_vdecode_symbol(void *ctx, size_t size, char *bytes) {
+  //  amp_value_t *value = next_value(ctx);
+  //  value->type = SYMBOL;
+  //  value->u.as_symbol = {.size = size, .bytes = bytes};
+}
+
+void amp_vdecode_start_array(void *ctx, size_t count, uint8_t code) {
+  amp_array_t *array = amp_array(amqp_code_to_type(code), count);
+  array->size = count;
+  amp_value_t *value = push_frame(ctx, array->values, count);
+  value->type = ARRAY;
+  value->u.as_array = array;
+}
+void amp_vdecode_stop_array(void *ctx, size_t count, uint8_t code) {}
+
+void amp_vdecode_list(void *ctx, size_t count) {}
+
+void amp_vdecode_start_list(void *ctx, size_t count) {
+  amp_list_t *list = amp_vlist(count);
+  list->size = count;
+  amp_value_t *value = push_frame(ctx, list->values, count);
+  value->type = LIST;
+  value->u.as_list = list;
+}
+
+void amp_vdecode_stop_list(void *ctx, size_t count) {}
+
+void amp_vdecode_map(void *ctx, size_t count) {}
+
+void amp_vdecode_start_map(void *ctx, size_t count) {
+  amp_map_t *map = amp_vmap(count/2);
+  map->size = count/2;
+  amp_value_t *value = push_frame(ctx, map->pairs, count);
+  value->type = MAP;
+  value->u.as_map = map;
+}
+
+void amp_vdecode_stop_map(void *ctx, size_t count) {}
+
+void amp_vdecode_descriptor(void *ctx) {}
+
+void amp_vdecode_start_descriptor(void *ctx) {
+  amp_tag_t *tag = amp_tag(EMPTY_VALUE, EMPTY_VALUE);
+  amp_value_t *value = push_frame(ctx, &tag->value, 1);
+  value->type = TAG;
+  value->u.as_tag = tag;
+  push_frame(ctx, &tag->descriptor, 1);
+}
+
+void amp_vdecode_stop_descriptor(void *ctx) {}
+
+amp_data_callbacks_t *amp_vdecoder = &AMP_DATA_CALLBACKS(amp_vdecode);
+
+/*
+static bool amp_vdecode_stop(void *ptr)
+{
+  struct amp_vdecode_context_st *ctx = CTX_CAST(ptr);
+  return ctx->depth == 0;
+}
+*/
+
+ssize_t amp_vdecode(amp_value_t *v, char *bytes, size_t n)
+{
+  struct amp_vdecode_context_st ctx = {.depth = 0};
+  push_frame(&ctx, v, 1);
+  ssize_t read = amp_read_datum(bytes, n, amp_vdecoder, &ctx);
+  return read;
 }

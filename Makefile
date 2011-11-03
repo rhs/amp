@@ -9,7 +9,6 @@ TYPES_SRC := src/types/allocation.c  src/types/encoder.c  src/types/string.c \
 	src/types/decoder.c     src/types/scalars.c
 VALUE_SRC := src/value.c
 VALUE_HDR := include/amp/value.h
-PROTOCOL_SRC := src/protocol.c
 ENGINE_SRC := src/engine/engine.c src/engine/connection.c src/engine/session.c \
 	src/engine/link.c
 DRIVER_SRC := src/driver.c
@@ -21,11 +20,11 @@ HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
 	${VALUE_HDR} \
 	${FRAMING_SRC:src/framing/%.c=include/amp/%.h} \
 	${CODEC_SRC:src/codec/%.c=include/amp/%.h} \
-	${PROTOCOL_SRC:%.c=%.h} \
+        src/protocol.h \
 	include/amp/engine.h \
 	src/codec/encodings.h
 
-PROGRAMS := src/amp src/test src/type_test
+PROGRAMS := src/amp
 
 all: ${PROGRAMS}
 

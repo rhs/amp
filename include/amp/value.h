@@ -23,11 +23,14 @@
  */
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
 
 enum TYPE {
   EMPTY,
+  BOOLEAN,
   UBYTE,
   USHORT,
   UINT,
@@ -68,6 +71,7 @@ struct amp_binary_st {
 struct  amp_value_st {
   enum TYPE type;
   union {
+    bool as_boolean;
     uint8_t as_ubyte;
     uint16_t as_ushort;
     uint32_t as_uint;
@@ -147,27 +151,51 @@ int amp_format_list(char **pos, char *limit, amp_list_t *list);
 int amp_format_map(char **pos, char *limit, amp_map_t *map);
 int amp_format_tag(char **pos, char *limit, amp_tag_t *tag);
 int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n);
+char *amp_aformat(amp_value_t v);
+
+size_t amp_vencode_sizeof(amp_value_t v);
+size_t amp_vencode(amp_value_t v, char *out);
+ssize_t amp_vdecode(amp_value_t *v, char *bytes, size_t n);
+
+/* scalars */
+#define amp_ulong(V) ((struct amp_value_st) {.type = ULONG, .u.as_ulong = (V)})
+#define amp_to_uint8(V) ((V).u.as_ubyte)
+#define amp_boolean(V) ((struct amp_value_st) {.type = BOOLEAN, .u.as_boolean = (V)})
 
 /* arrays */
 
 amp_array_t *amp_array(enum TYPE type, int capacity);
 amp_value_t amp_array_get(amp_array_t *a, int index);
+size_t amp_vencode_sizeof_array(amp_array_t *a);
+size_t amp_vencode_array(amp_array_t *array, char *out);
 
 /* lists */
 
 amp_list_t *amp_vlist(int capacity);
 amp_value_t amp_vlist_get(amp_list_t *l, int index);
+amp_value_t amp_vlist_set(amp_list_t *l, int index, amp_value_t v);
 int amp_vlist_extend(amp_list_t *l, const char *fmt, ...);
+int amp_vlist_fill(amp_list_t *l, amp_value_t v, int n);
+void amp_vlist_clear(amp_list_t *l);
+int amp_vlist_size(amp_list_t *l);
+size_t amp_vencode_sizeof_list(amp_list_t *l);
+size_t amp_vencode_list(amp_list_t *l, char *out);
 
 /* maps */
 
 amp_map_t *amp_vmap(int capacity);
+int amp_vmap_set(amp_map_t *map, amp_value_t key, amp_value_t value);
+amp_value_t amp_vmap_get(amp_map_t *map, amp_value_t key);
 amp_value_t amp_vmap_pop(amp_map_t *map, amp_value_t key);
+size_t amp_vencode_sizeof_map(amp_map_t *map);
+size_t amp_vencode_map(amp_map_t *m, char *out);
 
 /* tags */
 
 amp_tag_t *amp_tag(amp_value_t descriptor, amp_value_t value);
 amp_value_t amp_tag_descriptor(amp_tag_t *t);
 amp_value_t amp_tag_value(amp_tag_t *t);
+size_t amp_vencode_sizeof_tag(amp_tag_t *t);
+size_t amp_vencode_tag(amp_tag_t *t, char *out);
 
 #endif /* value.h */

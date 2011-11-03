@@ -201,4 +201,16 @@ void dec_descriptor(void *ctx) {
   dec_push(dec, ST_DESC, box, 2);
 }
 
+void dec_start_descriptor(void *ctx) {}
+void dec_stop_descriptor(void *ctx) {}
+
+void dec_start_list(void *ctx, size_t count) {}
+void dec_stop_list(void *ctx, size_t count) {}
+
+void dec_start_map(void *ctx, size_t count) {}
+void dec_stop_map(void *ctx, size_t count) {}
+
+void dec_start_array(void *ctx, size_t count, uint8_t code) {}
+void dec_stop_array(void *ctx, size_t count, uint8_t code) {}
+
 amp_data_callbacks_t *decoder = &AMP_DATA_CALLBACKS(dec);

@@ -24,11 +24,6 @@ print "/* generated */"
 print "#ifndef _AMP_PROTOCOL_H"
 print "#define _AMP_PROTOCOL_H 1"
 print
-print '#include <amp/binary.h>'
-print '#include <amp/list.h>'
-print '#include <amp/map.h>'
-print '#include <amp/box.h>'
-print
 
 for type in TYPES:
   fidx = 0
@@ -36,39 +31,17 @@ for type in TYPES:
     print "#define %s_%s (%s)" % (field_kw(type), field_kw(f), fidx)
     fidx += 1
 
-kws = []
+idx = 0
 
 for type in TYPES:
-  name = tname(type)
-  print "#define amp_proto_%s(...) amp_proto_%s_kw(__VA_ARGS__, KW_END)" % (name, name)
-  print "amp_box_t *amp_proto_%s_kw(amp_region_t *mem, int first, ...);" % name
-  print
-
-  for f in type.query["field"]:
-    kw = field_kw(f)
-    if kw not in kws:
-      kws.append(kw)
-
-idx = 0
-for kw in kws:
-  print "#define %s %s" % (kw, idx)
+  desc = type["descriptor"]
+  name = type["@name"].upper().replace("-", "_")
+  print "#define %s_SYM (\"%s\")" % (name, desc["@name"])
+  hi, lo = [int(x, 0) for x in desc["@code"].split(":")]
+  code = (hi << 32) + lo
+  print "#define %s_CODE (%s)" % (name, code)
+  print "#define %s (%s)" % (name, idx)
   idx += 1
-
-print "#define KW_END %s" % idx
-print
-
-idx = 0
-
-for type in TYPES:
-  provides = type["@provides"]
-  if provides and "frame" in provides:
-    desc = type["descriptor"]
-    print "#define %s_SYM (\"%s\")" % (type["@name"].upper(), desc["@name"])
-    hi, lo = [int(x, 0) for x in desc["@code"].split(":")]
-    code = (hi << 32) + lo
-    print "#define %s_CODE (%s)" % (type["@name"].upper(), code)
-    print "#define %s (%s)" % (type["@name"].upper(), idx)
-    idx += 1
 
 print
 print "#endif /* protocol.h */"

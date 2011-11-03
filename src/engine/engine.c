@@ -19,75 +19,56 @@
  *
  */
 
-#include <amp/allocation.h>
 #include <amp/engine.h>
 #include <amp/framing.h>
-#include <amp/type.h>
-#include <amp/map.h>
-#include <amp/symbol.h>
-#include <amp/scalars.h>
-#include <amp/decoder.h>
-#include <amp/string.h>
+#include <amp/value.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "../protocol.h"
 
 struct amp_engine_t {
-  AMP_HEAD;
   amp_error_t error;
   amp_connection_t *connection;
-  amp_region_t *region;
-  amp_decoder_t *decoder;
   amp_map_t *dispatch;
 
   amp_list_t *args;
-  amp_box_t *body;
   const char* payload_bytes;
   size_t payload_size;
-  amp_encoder_t *encoder;
   char *output;
   size_t available;
   size_t capacity;
 };
 
-AMP_TYPE_DECL(ENGINE, engine)
-
-amp_type_t *ENGINE = &AMP_TYPE(engine);
-
+  /*  amp_vmap_set(MAP, amp_symbol(AMP_HEAP, NAME ## _SYM), amp_ulong(AMP_HEAP, NAME)); \ */
 #define __DISPATCH(MAP, NAME)                                           \
-  amp_map_set(MAP, amp_symbol(AMP_HEAP, NAME ## _SYM), amp_ulong(AMP_HEAP, NAME)); \
-  amp_map_set(MAP, amp_ulong(AMP_HEAP, NAME ## _CODE), amp_ulong(AMP_HEAP, NAME))
+  amp_vmap_set(MAP, amp_ulong(NAME ## _CODE), amp_ulong(NAME))
 
 amp_engine_t *amp_engine_create(amp_connection_t *connection)
 {
-  amp_engine_t *o = amp_allocate(AMP_HEAP, NULL, sizeof(amp_engine_t));
-  o->type = ENGINE;
-  o->connection = connection;
-  // XXX
-  o->region = amp_region(64*1024);
-  o->decoder = amp_decoder(AMP_HEAP);
+  amp_engine_t *o = malloc(sizeof(amp_engine_t));
+  if (o) {
+    o->connection = connection;
 
-  amp_map_t *m = amp_map(AMP_HEAP, 32);
-  o->dispatch = m;
+    amp_map_t *m = amp_vmap(32);
+    o->dispatch = m;
 
-  __DISPATCH(m, OPEN);
-  __DISPATCH(m, BEGIN);
-  __DISPATCH(m, ATTACH);
-  __DISPATCH(m, TRANSFER);
-  __DISPATCH(m, FLOW);
-  __DISPATCH(m, DISPOSITION);
-  __DISPATCH(m, DETACH);
-  __DISPATCH(m, END);
-  __DISPATCH(m, CLOSE);
+    __DISPATCH(m, OPEN);
+    __DISPATCH(m, BEGIN);
+    __DISPATCH(m, ATTACH);
+    __DISPATCH(m, TRANSFER);
+    __DISPATCH(m, FLOW);
+    __DISPATCH(m, DISPOSITION);
+    __DISPATCH(m, DETACH);
+    __DISPATCH(m, END);
+    __DISPATCH(m, CLOSE);
 
-
-  o->args = amp_list(AMP_HEAP, 16);
-  o->body = amp_box(AMP_HEAP, NULL, o->args);
-  o->encoder = amp_encoder(AMP_HEAP);
-  // XXX
-  o->capacity = 4*1024;
-  o->output = amp_allocate(AMP_HEAP, NULL, o->capacity);
-  o->available = 0;
+    o->args = amp_vlist(16);
+    // XXX
+    o->capacity = 4*1024;
+    o->output = malloc(o->capacity);
+    o->available = 0;
+  }
 
   return o;
 }
@@ -102,16 +83,7 @@ int amp_engine_inspect(amp_object_t *o, char **pos, char *limit)
   return 0;
 }
 
-AMP_DEFAULT_HASH(engine)
-AMP_DEFAULT_COMPARE(engine)
-
-void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_box_t *body, const char* payload_bytes, size_t payload_size);
-
-bool read_one_value(void* ctxt)
-{
-  amp_decoder_t* dec = ctxt;
-  return dec->size == 1 && dec->depth == 1;
-}
+void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_tag_t *performative, const char* payload_bytes, size_t payload_size);
 
 ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
 {
@@ -120,20 +92,16 @@ ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
     amp_frame_t frame;
     size_t n = amp_read_frame(&frame, src + read, available);
     if (n) {
-      amp_decoder_init(engine->decoder, engine->region);
-      ssize_t e = amp_read_data(frame.payload, frame.size, decoder, &read_one_value, engine->decoder);
+      amp_value_t performative;
+      ssize_t e = amp_vdecode(&performative, frame.payload, frame.size);
       if (e < 0) {
-        printf("Error decoding frame: %i\n", (int)e);
+        fprintf(stderr, "Error decoding frame: %i\n", (int)e);
+        fprintf(stderr, "%s\n", amp_aformat(amp_value("z", frame.size, frame.payload)));
         return e;
       }
 
-      if (engine->decoder->size != 1) {
-        // XXX
-      }
-
-      amp_box_t *body = engine->decoder->values[0];
-      amp_engine_dispatch(engine, frame.channel, body, frame.payload + e, frame.size - e);
-      amp_region_clear(engine->region);
+      amp_tag_t *perf = amp_to_tag(performative);
+      amp_engine_dispatch(engine, frame.channel, perf, frame.payload + e, frame.size - e);
 
       available -= n;
       read += n;
@@ -155,20 +123,19 @@ ssize_t amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
   return m;
 }
 
-void amp_engine_init_frame(amp_engine_t *eng, uint32_t frame)
+void amp_engine_init_frame(amp_engine_t *eng)
 {
-  amp_list_clear(eng->args);
-  amp_box_set_tag(eng->body, amp_ulong(eng->region, frame));
+  amp_vlist_clear(eng->args);
   eng->payload_size = 0;
   eng->payload_bytes = 0;
 }
 
-void amp_engine_field(amp_engine_t *eng, int index, amp_object_t *arg)
+void amp_engine_field(amp_engine_t *eng, int index, amp_value_t arg)
 {
-  int n = amp_list_size(eng->args);
+  int n = amp_vlist_size(eng->args);
   if (index >= n)
-    amp_list_fill(eng->args, NULL, index - n + 1);
-  amp_list_set(eng->args, index, arg);
+    amp_vlist_fill(eng->args, EMPTY_VALUE, index - n + 1);
+  amp_vlist_set(eng->args, index, arg);
 }
 
 void amp_engine_append_payload(amp_engine_t *eng, const char* data, size_t size)
@@ -179,210 +146,188 @@ void amp_engine_append_payload(amp_engine_t *eng, const char* data, size_t size)
 
 #define BUF_SIZE (1024*1024)
 
-void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch)
+void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch, uint32_t performative)
 {
+  amp_tag_t tag;
   amp_frame_t frame = {0};
   char bytes[BUF_SIZE];
-  char *pos = bytes;
-  amp_encoder_init(eng->encoder);
-  amp_encode(eng->body, eng->encoder, &pos, pos + BUF_SIZE);
+  tag.descriptor = amp_ulong(performative);
+  tag.value = amp_from_list(eng->args);
+  fprintf(stderr, "POST: %s\n", amp_aformat(amp_from_tag(&tag)));
+  // XXX: sizeof
+  size_t size = amp_vencode(amp_from_tag(&tag), bytes);
   if (eng->payload_size) {
-    memmove(pos, eng->payload_bytes, eng->payload_size);
-    pos += eng->payload_size;
+    memmove(bytes + size, eng->payload_bytes, eng->payload_size);
+    size += eng->payload_size;
   }
   frame.channel = ch;
   frame.payload = bytes;
-  frame.size = pos - bytes;
+  frame.size = size;
   size_t n;
   while (!(n = amp_write_frame(eng->output + eng->available,
                                eng->capacity - eng->available, frame))) {
     eng->capacity *= 2;
-    eng->output = amp_allocate(AMP_HEAP, eng->output, eng->capacity);
+    eng->output = realloc(eng->output, eng->capacity);
   }
   eng->available += n;
 }
 
 int amp_engine_open(amp_engine_t *eng, wchar_t *container_id, wchar_t *hostname)
 {
-  amp_engine_init_frame(eng, OPEN_CODE);
+  amp_engine_init_frame(eng);
   if (container_id)
-    amp_engine_field(eng, OPEN_CONTAINER_ID, amp_string(eng->region, container_id));
+    amp_engine_field(eng, OPEN_CONTAINER_ID, amp_value("S", container_id));
   if (hostname)
-    amp_engine_field(eng, OPEN_HOSTNAME, amp_string(eng->region, hostname));
-  amp_engine_post_frame(eng, 0);
+    amp_engine_field(eng, OPEN_HOSTNAME, amp_value("S", hostname));
+  amp_engine_post_frame(eng, 0, OPEN_CODE);
   return 0;
 }
 
 void amp_engine_do_open(amp_engine_t *e, amp_list_t *args)
 {
-  printf("OPEN: %s\n", amp_ainspect(args));
+  printf("OPEN: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 int amp_engine_begin(amp_engine_t *eng, int channel, int remote_channel,
                      sequence_t next_outgoing_id, uint32_t incoming_window,
                      uint32_t outgoing_window)
 {
-  amp_engine_init_frame(eng, BEGIN_CODE);
+  amp_engine_init_frame(eng);
   if (remote_channel != -1)
-    amp_engine_field(eng, BEGIN_REMOTE_CHANNEL, amp_ushort(eng->region, remote_channel));
-  amp_engine_field(eng, BEGIN_NEXT_OUTGOING_ID, amp_uint(eng->region, next_outgoing_id));
-  amp_engine_field(eng, BEGIN_INCOMING_WINDOW, amp_uint(eng->region, incoming_window));
-  amp_engine_field(eng, BEGIN_OUTGOING_WINDOW, amp_uint(eng->region, outgoing_window));
-  amp_engine_post_frame(eng, channel);
+    amp_engine_field(eng, BEGIN_REMOTE_CHANNEL, amp_value("H", remote_channel));
+  amp_engine_field(eng, BEGIN_NEXT_OUTGOING_ID, amp_value("I", next_outgoing_id));
+  amp_engine_field(eng, BEGIN_INCOMING_WINDOW, amp_value("I", incoming_window));
+  amp_engine_field(eng, BEGIN_OUTGOING_WINDOW, amp_value("I", outgoing_window));
+  amp_engine_post_frame(eng, channel, BEGIN_CODE);
   return 0;
 }
 
 void amp_engine_do_begin(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
-  printf("BEGIN: %s\n", amp_ainspect(args));
+  printf("BEGIN: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 int amp_engine_attach(amp_engine_t *eng, uint16_t channel, bool role,
                       wchar_t *name, int handle, sequence_t initial_transfer_count,
                       wchar_t *source, wchar_t *target)
 {
-  amp_engine_init_frame(eng, ATTACH_CODE);
-  amp_engine_field(eng, ATTACH_ROLE, amp_boolean(eng->region, role));
-  amp_engine_field(eng, ATTACH_NAME, amp_string(eng->region, name));
-  amp_engine_field(eng, ATTACH_HANDLE, amp_uint(eng->region, handle));
-  amp_engine_field(eng, ATTACH_INITIAL_DELIVERY_COUNT, amp_uint(eng->region, initial_transfer_count));
+  amp_engine_init_frame(eng);
+  amp_engine_field(eng, ATTACH_ROLE, amp_boolean(role));
+  amp_engine_field(eng, ATTACH_NAME, amp_value("S", name));
+  amp_engine_field(eng, ATTACH_HANDLE, amp_value("I", handle));
+  amp_engine_field(eng, ATTACH_INITIAL_DELIVERY_COUNT, amp_value("I", initial_transfer_count));
   if (source)
-    amp_engine_field(eng, ATTACH_SOURCE,
-                     amp_proto_source(eng->region,
-                                      ADDRESS, amp_string(eng->region, source)));
+    amp_engine_field(eng, ATTACH_SOURCE, amp_value("B([S])", SOURCE_CODE, source));
   if (target)
-    amp_engine_field(eng, ATTACH_TARGET,
-                     amp_proto_target(eng->region,
-                                      ADDRESS, amp_string(eng->region, target)));
-  amp_engine_post_frame(eng, channel);
+    amp_engine_field(eng, ATTACH_TARGET, amp_value("B([S])", TARGET_CODE, target));
+  amp_engine_post_frame(eng, channel, ATTACH_CODE);
   return 0;
 }
 
 void amp_engine_do_attach(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
-  printf("ATTACH: %s\n", amp_ainspect(args));
+  printf("ATTACH: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 int amp_engine_transfer(amp_engine_t *eng, uint16_t channel, int handle,
                         char *dtag, sequence_t id, char *bytes, size_t n)
 {
-  amp_engine_init_frame(eng, TRANSFER_CODE);
-  amp_engine_field(eng, TRANSFER_HANDLE, amp_uint(eng->region, handle));
-  amp_engine_field(eng, TRANSFER_DELIVERY_ID, amp_uint(eng->region, id));
-  size_t dn = strlen(dtag);
-  amp_binary_t *bdtag = amp_binary(eng->region, dn);
-  amp_binary_extend(bdtag, dtag, dn);
-  amp_engine_field(eng, TRANSFER_DELIVERY_TAG, bdtag);
-  amp_engine_field(eng, TRANSFER_MESSAGE_FORMAT, 0);//TODO: allow this to be set by app
+  amp_engine_init_frame(eng);
+  amp_engine_field(eng, TRANSFER_HANDLE, amp_value("I", handle));
+  amp_engine_field(eng, TRANSFER_DELIVERY_ID, amp_value("I", id));
+  amp_engine_field(eng, TRANSFER_DELIVERY_TAG, amp_value("z", strlen(dtag), dtag));
+  amp_engine_field(eng, TRANSFER_MESSAGE_FORMAT, amp_value("I", 0));
   amp_engine_append_payload(eng, bytes, n);
-  amp_engine_post_frame(eng, channel);
+  amp_engine_post_frame(eng, channel, TRANSFER_CODE);
   return 0;
 }
 
 void amp_engine_do_transfer(amp_engine_t *e, uint16_t channel, amp_list_t *args, const char* payload_bytes, size_t payload_size)
 {
-  printf("TRANSFER: %s payload: %.*s\n", amp_ainspect(args), (int) payload_size, payload_bytes);
+  printf("TRANSFER: %s payload: %.*s\n", amp_aformat(amp_from_list(args)), (int) payload_size, payload_bytes);
 }
 
 int amp_engine_flow(amp_engine_t *eng, uint16_t channel, sequence_t in_next,
                     int in_win, sequence_t out_next, int out_win, int handle,
                     sequence_t transfer_count, int credit)
 {
-  amp_engine_init_frame(eng, FLOW_CODE);
-  amp_engine_field(eng, FLOW_NEXT_INCOMING_ID, amp_uint(eng->region, in_next));
-  amp_engine_field(eng, FLOW_INCOMING_WINDOW, amp_uint(eng->region, in_win));
-  amp_engine_field(eng, FLOW_NEXT_OUTGOING_ID, amp_uint(eng->region, out_next));
-  amp_engine_field(eng, FLOW_OUTGOING_WINDOW, amp_uint(eng->region, out_win));
-  amp_engine_field(eng, FLOW_HANDLE, amp_uint(eng->region, handle));
-  amp_engine_field(eng, FLOW_DELIVERY_COUNT, amp_uint(eng->region, transfer_count));
-  amp_engine_field(eng, FLOW_LINK_CREDIT, amp_uint(eng->region, credit));
-  amp_engine_post_frame(eng, channel);
+  amp_engine_init_frame(eng);
+  amp_engine_field(eng, FLOW_NEXT_INCOMING_ID, amp_value("I", in_next));
+  amp_engine_field(eng, FLOW_INCOMING_WINDOW, amp_value("I", in_win));
+  amp_engine_field(eng, FLOW_NEXT_OUTGOING_ID, amp_value("I", out_next));
+  amp_engine_field(eng, FLOW_OUTGOING_WINDOW, amp_value("I", out_win));
+  amp_engine_field(eng, FLOW_HANDLE, amp_value("I", handle));
+  amp_engine_field(eng, FLOW_DELIVERY_COUNT, amp_value("I", transfer_count));
+  amp_engine_field(eng, FLOW_LINK_CREDIT, amp_value("I", credit));
+  amp_engine_post_frame(eng, channel, FLOW_CODE);
   return 0;
 }
 
 void amp_engine_do_flow(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
-  printf("FLOW: %s\n", amp_ainspect(args));
+  printf("FLOW: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 void amp_engine_do_disposition(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
-  printf("DISP: %s\n", amp_ainspect(args));
+  printf("DISP: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 int amp_engine_detach(amp_engine_t *eng, int channel, int handle, char *condition,
                       wchar_t *description)
 {
-  amp_engine_init_frame(eng, DETACH_CODE);
-  amp_engine_field(eng, DETACH_HANDLE, amp_uint(eng->region, handle));
-  amp_box_t *error;
-  if (condition) {
-    error = amp_proto_error(eng->region, CONDITION, condition,
-                            DESCRIPTION, description);
-  } else {
-    error = NULL;
-  }
-  if (error)
-    amp_engine_field(eng, DETACH_ERROR, error);
-  amp_engine_post_frame(eng, channel);
+  amp_engine_init_frame(eng);
+  amp_engine_field(eng, DETACH_HANDLE, amp_value("I", handle));
+  if (condition)
+    // XXX: symbol
+    amp_engine_field(eng, DETACH_ERROR, amp_value("B([zS])", ERROR_CODE, condition, description));
+  amp_engine_post_frame(eng, channel, DETACH_CODE);
   return 0;
 }
 
 void amp_engine_do_detach(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
-  printf("DETACH: %s\n", amp_ainspect(args));
+  printf("DETACH: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 int amp_engine_end(amp_engine_t *eng, int channel, char *condition,
                    wchar_t *description)
 {
-  amp_box_t *error;
-  if (condition) {
-    error = amp_proto_error(eng->region, CONDITION, condition,
-                            DESCRIPTION, description);
-  } else {
-    error = NULL;
-  }
-  amp_engine_init_frame(eng, END_CODE);
-  if (error)
-    amp_engine_field(eng, DETACH_ERROR, error);
-  amp_engine_post_frame(eng, channel);
+  amp_engine_init_frame(eng);
+  if (condition)
+    // XXX: symbol
+    amp_engine_field(eng, DETACH_ERROR, amp_value("B([zS])", ERROR_CODE, condition, description));
+  amp_engine_post_frame(eng, channel, END_CODE);
   return 0;
 }
 
 void amp_engine_do_end(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
-  printf("END: %s\n", amp_ainspect(args));
+  printf("END: %s\n", amp_aformat(amp_from_list(args)));
 }
 
 int amp_engine_close(amp_engine_t *eng, char *condition, wchar_t *description)
 {
-  amp_box_t *error;
-  if (condition) {
-    error = amp_proto_error(eng->region, CONDITION, condition,
-                                       DESCRIPTION, description);
-  } else{
-    error = NULL;
-  }
-  amp_engine_init_frame(eng, CLOSE_CODE);
-  if (error)
-    amp_engine_field(eng, CLOSE_ERROR, error);
-  amp_engine_post_frame(eng, 0);
+  amp_engine_init_frame(eng);
+  if (condition)
+    // XXX: symbol
+    amp_engine_field(eng, CLOSE_ERROR, amp_value("B([zS])", ERROR_CODE, condition, description));
+  amp_engine_post_frame(eng, 0, CLOSE_CODE);
   return 0;
 }
 
 
 void amp_engine_do_close(amp_engine_t *e, amp_list_t *args)
 {
-  printf("CLOSE: %s\n", amp_ainspect(args));
+  printf("CLOSE: %s\n", amp_aformat(amp_from_list(args)));
 }
 
-void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_box_t *body, const char* payload_bytes, size_t payload_size)
+void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_tag_t *performative, const char* payload_bytes, size_t payload_size)
 {
-  amp_object_t *desc = amp_box_tag(body);
-  amp_object_t *args = amp_box_value(body);
-  amp_object_t *cobj = amp_map_get(e->dispatch, desc);
-  uint8_t code = amp_to_uint8(cobj);
+  amp_value_t desc = amp_tag_descriptor(performative);
+  amp_list_t *args = amp_to_list(amp_tag_value(performative));
+  amp_value_t cval = amp_vmap_get(e->dispatch, desc);
+  uint8_t code = amp_to_uint8(cval);
   switch (code)
   {
   case OPEN:

@@ -68,8 +68,17 @@ typedef struct {
   void (*on_list)(void *ctx, size_t count);
   void (*on_map)(void *ctx, size_t count);
   void (*on_descriptor)(void *ctx);
+  void (*start_descriptor)(void *ctx);
+  void (*stop_descriptor)(void *ctx);
+  void (*start_array)(void *ctx, size_t count, uint8_t code);
+  void (*stop_array)(void *ctx, size_t count, uint8_t code);
+  void (*start_list)(void *ctx, size_t count);
+  void (*stop_list)(void *ctx, size_t count);
+  void (*start_map)(void *ctx, size_t count);
+  void (*stop_map)(void *ctx, size_t count);
 } amp_data_callbacks_t;
 
+ssize_t amp_read_datum(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx);
 ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*stop_function)(void *ctx), void *ctx);
 
 #define AMP_DATA_CALLBACKS(STEM) ((amp_data_callbacks_t) { \
@@ -92,6 +101,14 @@ ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*st
   .on_list = & STEM ## _list,                              \
   .on_map = & STEM ## _map,                                \
   .on_descriptor = & STEM ## _descriptor,                  \
+  .start_descriptor = & STEM ## _start_descriptor,         \
+  .stop_descriptor = & STEM ## _stop_descriptor,           \
+  .start_array = & STEM ## _start_array,                   \
+  .stop_array = & STEM ## _stop_array,                     \
+  .start_list = & STEM ## _start_list,                     \
+  .stop_list = & STEM ## _stop_list,                       \
+  .start_map = & STEM ## _start_map,                       \
+  .stop_map = & STEM ## _stop_map,                         \
 })
 
 extern amp_data_callbacks_t *noop;
