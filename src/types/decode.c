@@ -208,7 +208,7 @@ void amp_vdecode_stop_array(void *ctx, size_t count, uint8_t code) {}
 void amp_vdecode_list(void *ctx, size_t count) {}
 
 void amp_vdecode_start_list(void *ctx, size_t count) {
-  amp_list_t *list = amp_vlist(count);
+  amp_list_t *list = amp_list(count);
   list->size = count;
   amp_value_t *value = push_frame(ctx, list->values, count);
   value->type = LIST;

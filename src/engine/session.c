@@ -44,7 +44,7 @@ amp_session_t *amp_session_create()
   o->connection = NULL;
   o->channel = -1;
   o->remote_channel = -1;
-  o->links = amp_vlist(16);
+  o->links = amp_list(16);
   o->begun = false;
   o->begin_sent = false;
   o->begin_rcvd = false;
@@ -94,12 +94,12 @@ int amp_session_out_win(amp_session_t *session)
 
 int amp_session_links(amp_session_t *session)
 {
-  return amp_vlist_size(session->links);
+  return amp_list_size(session->links);
 }
 
 amp_link_t *amp_session_get_link(amp_session_t *session, int index)
 {
-  return amp_to_ref(amp_vlist_get(session->links, index));
+  return amp_to_ref(amp_list_get(session->links, index));
 }
 
 void amp_session_bind(amp_session_t *ssn, amp_connection_t *conn, int channel)
@@ -110,8 +110,8 @@ void amp_session_bind(amp_session_t *ssn, amp_connection_t *conn, int channel)
 
 void amp_session_add(amp_session_t *ssn, amp_link_t *link)
 {
-  int handle = amp_vlist_size(ssn->links);
-  amp_vlist_add(ssn->links, amp_from_ref(link));
+  int handle = amp_list_size(ssn->links);
+  amp_list_add(ssn->links, amp_from_ref(link));
   amp_link_bind(link, ssn, handle);
 }
 

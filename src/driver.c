@@ -50,19 +50,19 @@ struct amp_selectable_st {
 amp_driver_t *amp_driver()
 {
   amp_driver_t *o = malloc(sizeof(amp_driver_t));
-  o->selectables = amp_vlist(16);
+  o->selectables = amp_list(16);
   return o;
 }
 
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s)
 {
-  amp_vlist_add(d->selectables, amp_from_ref(s));
+  amp_list_add(d->selectables, amp_from_ref(s));
   s->driver = d;
 }
 
 void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s)
 {
-  amp_vlist_remove(d->selectables, amp_from_ref(s));
+  amp_list_remove(d->selectables, amp_from_ref(s));
   s->driver = NULL;
 }
 
@@ -73,7 +73,7 @@ void amp_driver_run(amp_driver_t *d)
 
   while (true)
   {
-    int n = amp_vlist_size(d->selectables);
+    int n = amp_list_size(d->selectables);
     if (n == 0) break;
     if (n > nfds) {
       fds = realloc(fds, n*sizeof(struct pollfd));
@@ -82,7 +82,7 @@ void amp_driver_run(amp_driver_t *d)
 
     for (i = 0; i < n; i++)
     {
-      amp_selectable_t *s = amp_to_ref(amp_vlist_get(d->selectables, i));
+      amp_selectable_t *s = amp_to_ref(amp_list_get(d->selectables, i));
       fds[i].fd = s->fd;
       fds[i].events = (s->status & AMP_SEL_RD ? POLLIN : 0) |
         (s->status & AMP_SEL_WR ? POLLOUT : 0);
@@ -97,7 +97,7 @@ void amp_driver_run(amp_driver_t *d)
 
     for (i = 0; i < n; i++)
     {
-      amp_selectable_t *s = amp_to_ref(amp_vlist_get(d->selectables, i));
+      amp_selectable_t *s = amp_to_ref(amp_list_get(d->selectables, i));
       if (fds[i].revents & POLLIN)
         s->readable(s);
       if (fds[i].revents & POLLOUT)

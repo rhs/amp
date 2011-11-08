@@ -297,7 +297,7 @@ int amp_vscan(amp_value_t *value, const char *fmt, va_list ap)
     case '[':
       stack[level] = (stack_frame_t) {value, scan_size(fmt+1)};
       value->type = LIST;
-      value->u.as_list = amp_vlist(stack[level].count);
+      value->u.as_list = amp_list(stack[level].count);
       value->u.as_list->size = stack[level].count;
       value = value->u.as_list->values;
       level++;

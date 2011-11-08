@@ -63,7 +63,7 @@ amp_engine_t *amp_engine_create(amp_connection_t *connection)
     __DISPATCH(m, END);
     __DISPATCH(m, CLOSE);
 
-    o->args = amp_vlist(16);
+    o->args = amp_list(16);
     // XXX
     o->capacity = 4*1024;
     o->output = malloc(o->capacity);
@@ -115,17 +115,17 @@ ssize_t amp_engine_output(amp_engine_t *engine, char *dst, size_t n)
 
 void amp_engine_init_frame(amp_engine_t *eng)
 {
-  amp_vlist_clear(eng->args);
+  amp_list_clear(eng->args);
   eng->payload_size = 0;
   eng->payload_bytes = 0;
 }
 
 void amp_engine_field(amp_engine_t *eng, int index, amp_value_t arg)
 {
-  int n = amp_vlist_size(eng->args);
+  int n = amp_list_size(eng->args);
   if (index >= n)
-    amp_vlist_fill(eng->args, EMPTY_VALUE, index - n + 1);
-  amp_vlist_set(eng->args, index, arg);
+    amp_list_fill(eng->args, EMPTY_VALUE, index - n + 1);
+  amp_list_set(eng->args, index, arg);
 }
 
 void amp_engine_append_payload(amp_engine_t *eng, const char* data, size_t size)

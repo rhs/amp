@@ -175,15 +175,15 @@ size_t amp_vencode_array(amp_array_t *array, char *out);
 
 /* lists */
 
-amp_list_t *amp_vlist(int capacity);
-amp_value_t amp_vlist_get(amp_list_t *l, int index);
-amp_value_t amp_vlist_set(amp_list_t *l, int index, amp_value_t v);
-int amp_vlist_add(amp_list_t *l, amp_value_t v);
-bool amp_vlist_remove(amp_list_t *l, amp_value_t v);
-int amp_vlist_extend(amp_list_t *l, const char *fmt, ...);
-int amp_vlist_fill(amp_list_t *l, amp_value_t v, int n);
-void amp_vlist_clear(amp_list_t *l);
-int amp_vlist_size(amp_list_t *l);
+amp_list_t *amp_list(int capacity);
+amp_value_t amp_list_get(amp_list_t *l, int index);
+amp_value_t amp_list_set(amp_list_t *l, int index, amp_value_t v);
+int amp_list_add(amp_list_t *l, amp_value_t v);
+bool amp_list_remove(amp_list_t *l, amp_value_t v);
+int amp_list_extend(amp_list_t *l, const char *fmt, ...);
+int amp_list_fill(amp_list_t *l, amp_value_t v, int n);
+void amp_list_clear(amp_list_t *l);
+int amp_list_size(amp_list_t *l);
 size_t amp_vencode_sizeof_list(amp_list_t *l);
 size_t amp_vencode_list(amp_list_t *l, char *out);
 

@@ -46,8 +46,8 @@ int value(int argc, char **argv)
                        L"one", 1, L"two", 2, L"three", 3);
 
   amp_list_t *list = amp_to_list(v[8]);
-  amp_map_t *map = amp_to_map(amp_vlist_get(list, 3));
-  print(amp_vlist_get(list, 3));
+  amp_map_t *map = amp_to_map(amp_list_get(list, 3));
+  print(amp_list_get(list, 3));
   printf("POP: ");
   print(amp_vmap_pop(map, amp_value("S", L"key")));
 
@@ -56,8 +56,8 @@ int value(int argc, char **argv)
     printf("value %.2i [%li]: ", i, amp_vencode_sizeof(v[i])); print(v[i]);
   }
 
-  amp_list_t *l = amp_vlist(1024);
-  amp_vlist_extend(l, "SIi[iii]", L"One", 2, -3, 4, 5, 6);
+  amp_list_t *l = amp_list(1024);
+  amp_list_extend(l, "SIi[iii]", L"One", 2, -3, 4, 5, 6);
   printf("list [%li]: ", amp_vencode_sizeof_list(l)); print(amp_from_list(l));
 
   for (int i = 0; i < count; i++)

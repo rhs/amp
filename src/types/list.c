@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-amp_list_t *amp_vlist(int capacity)
+amp_list_t *amp_list(int capacity)
 {
   amp_list_t *l = malloc(sizeof(amp_list_t) + capacity*sizeof(amp_value_t));
   if (l) {
@@ -34,24 +34,24 @@ amp_list_t *amp_vlist(int capacity)
   return l;
 }
 
-int amp_vlist_size(amp_list_t *l)
+int amp_list_size(amp_list_t *l)
 {
   return l->size;
 }
 
-amp_value_t amp_vlist_get(amp_list_t *l, int index)
+amp_value_t amp_list_get(amp_list_t *l, int index)
 {
   return l->values[index];
 }
 
-amp_value_t amp_vlist_set(amp_list_t *l, int index, amp_value_t v)
+amp_value_t amp_list_set(amp_list_t *l, int index, amp_value_t v)
 {
   amp_value_t r = l->values[index];
   l->values[index] = v;
   return r;
 }
 
-amp_value_t amp_vlist_pop(amp_list_t *l, int index)
+amp_value_t amp_list_pop(amp_list_t *l, int index)
 {
   int i, n = l->size;
   amp_value_t v = l->values[index];
@@ -61,7 +61,7 @@ amp_value_t amp_vlist_pop(amp_list_t *l, int index)
   return v;
 }
 
-int amp_vlist_add(amp_list_t *l, amp_value_t v)
+int amp_list_add(amp_list_t *l, amp_value_t v)
 {
   if (l->capacity <= l->size) {
     fprintf(stderr, "wah!\n");
@@ -72,7 +72,7 @@ int amp_vlist_add(amp_list_t *l, amp_value_t v)
   return 0;
 }
 
-int amp_vlist_extend(amp_list_t *l, const char *fmt, ...)
+int amp_list_extend(amp_list_t *l, const char *fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
@@ -82,7 +82,7 @@ int amp_vlist_extend(amp_list_t *l, const char *fmt, ...)
   return n;
 }
 
-int amp_vlist_index(amp_list_t *l, amp_value_t v)
+int amp_list_index(amp_list_t *l, amp_value_t v)
 {
   int i, n = l->size;
   for (i = 0; i < n; i++)
@@ -91,28 +91,28 @@ int amp_vlist_index(amp_list_t *l, amp_value_t v)
   return -1;
 }
 
-bool amp_vlist_remove(amp_list_t *l, amp_value_t v)
+bool amp_list_remove(amp_list_t *l, amp_value_t v)
 {
-  int i = amp_vlist_index(l, v);
+  int i = amp_list_index(l, v);
   if (i >= 0) {
-    amp_vlist_pop(l, i);
+    amp_list_pop(l, i);
     return true;
   } else {
     return false;
   }
 }
 
-int amp_vlist_fill(amp_list_t *l, amp_value_t v, int n)
+int amp_list_fill(amp_list_t *l, amp_value_t v, int n)
 {
   int i, e;
 
   for (i = 0; i < n; i++)
-    if ((e = amp_vlist_add(l, v))) return e;
+    if ((e = amp_list_add(l, v))) return e;
 
   return 0;
 }
 
-void amp_vlist_clear(amp_list_t *l)
+void amp_list_clear(amp_list_t *l)
 {
   l->size = 0;
 }
@@ -141,7 +141,7 @@ uintptr_t amp_hash_list(amp_list_t *list)
 
   for (i = 0; i < n; i++)
   {
-    hash = 31*hash + amp_hash_value(amp_vlist_get(list, i));
+    hash = 31*hash + amp_hash_value(amp_list_get(list, i));
   }
 
   return hash;
@@ -154,7 +154,7 @@ int amp_compare_list(amp_list_t *a, amp_list_t *b)
 
   for (i = 0; i < n; i++)
   {
-    c = amp_compare_value(amp_vlist_get(a, i), amp_vlist_get(b, i));
+    c = amp_compare_value(amp_list_get(a, i), amp_list_get(b, i));
     if (!c)
       return c;
   }
