@@ -1,8 +1,6 @@
 *.pyc
 *.o
+*.d
 src/codec/encodings.h
-src/protocol.c
 src/protocol.h
 src/amp
-src/test
-src/type_test
