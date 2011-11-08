@@ -205,8 +205,6 @@ void amp_decode_start_array(void *ctx, size_t count, uint8_t code) {
 }
 void amp_decode_stop_array(void *ctx, size_t count, uint8_t code) {}
 
-void amp_decode_list(void *ctx, size_t count) {}
-
 void amp_decode_start_list(void *ctx, size_t count) {
   amp_list_t *list = amp_list(count);
   list->size = count;
@@ -217,8 +215,6 @@ void amp_decode_start_list(void *ctx, size_t count) {
 
 void amp_decode_stop_list(void *ctx, size_t count) {}
 
-void amp_decode_map(void *ctx, size_t count) {}
-
 void amp_decode_start_map(void *ctx, size_t count) {
   amp_map_t *map = amp_map(count/2);
   map->size = count/2;
@@ -228,8 +224,6 @@ void amp_decode_start_map(void *ctx, size_t count) {
 }
 
 void amp_decode_stop_map(void *ctx, size_t count) {}
-
-void amp_decode_descriptor(void *ctx) {}
 
 void amp_decode_start_descriptor(void *ctx) {
   amp_tag_t *tag = amp_tag(EMPTY_VALUE, EMPTY_VALUE);

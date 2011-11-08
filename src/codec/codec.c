@@ -205,194 +205,6 @@ int amp_write_map(char **pos, char *limit, char *start, size_t count) {
   return amp_write_end(pos, limit, start, 2*count, AMPE_MAP32);
 }
 
-ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*stop)(void *ctx), void *ctx)
-{
-  size_t size;
-  size_t count;
-  conv_t conv;
-  int offset;
-
-  for (offset = 0; offset < n && !(stop && stop(ctx)); )
-  {
-    uint8_t code = bytes[offset];
-    offset += 1;
-
-    switch(code)
-    {
-    case AMPE_DESCRIPTOR:
-      cb->on_descriptor(ctx);
-      break;
-    case AMPE_NULL:
-      cb->on_null(ctx);
-      break;
-    case AMPE_TRUE:
-      cb->on_bool(ctx, true);
-      break;
-    case AMPE_FALSE:
-      cb->on_bool(ctx, false);
-      break;
-    case AMPE_BOOLEAN:
-      cb->on_bool(ctx, *(bytes + offset) != 0);
-      offset += 1;
-      break;
-    case AMPE_UBYTE:
-      cb->on_ubyte(ctx, *((uint8_t *) (bytes + offset)));
-      offset += 1;
-      break;
-    case AMPE_BYTE:
-      cb->on_byte(ctx, *((int8_t *) (bytes + offset)));
-      offset += 1;
-      break;
-    case AMPE_USHORT:
-      cb->on_ushort(ctx, ntohs(*((uint16_t *) (bytes + offset))));
-      offset += 2;
-      break;
-    case AMPE_SHORT:
-      cb->on_short(ctx, (int16_t) ntohs(*((int16_t *) (bytes + offset))));
-      offset += 2;
-      break;
-    case AMPE_UINT:
-      cb->on_uint(ctx, ntohl(*((uint32_t *) (bytes + offset))));
-      offset += 4;
-      break;
-    case AMPE_UINT0:
-      cb->on_uint(ctx, 0);
-      break;
-    case AMPE_INT:
-      cb->on_int(ctx, ntohl(*((uint32_t *) (bytes + offset))));
-      offset += 4;
-      break;
-    case AMPE_FLOAT:
-      // XXX: this assumes the platform uses IEEE floats
-      conv.i = ntohl(*((uint32_t *) (bytes + offset)));
-      cb->on_float(ctx, conv.f);
-      offset += 4;
-      break;
-    case AMPE_ULONG:
-    case AMPE_LONG:
-    case AMPE_DOUBLE:
-      {
-        uint32_t hi = ntohl(*((uint32_t *) (bytes + offset)));
-        offset += 4;
-        uint32_t lo = ntohl(*((uint32_t *) (bytes + offset)));
-        offset += 4;
-        conv.l = (((uint64_t) hi) << 32) | lo;
-      }
-
-      switch (code)
-      {
-      case AMPE_ULONG:
-        cb->on_ulong(ctx, conv.l);
-        break;
-      case AMPE_LONG:
-        cb->on_long(ctx, (int64_t) conv.l);
-        break;
-      case AMPE_DOUBLE:
-        // XXX: this assumes the platform uses IEEE floats
-        cb->on_double(ctx, conv.d);
-        break;
-      default:
-        return -1;
-      }
-
-      break;
-    case AMPE_ULONG0:
-      cb->on_ulong(ctx, 0);
-      break;
-    case AMPE_VBIN8:
-    case AMPE_STR8_UTF8:
-    case AMPE_SYM8:
-    case AMPE_VBIN32:
-    case AMPE_STR32_UTF8:
-    case AMPE_SYM32:
-      switch (code & 0xF0)
-      {
-      case 0xA0:
-        size = *(uint8_t *) (bytes + offset);
-        offset += 1;
-        break;
-      case 0xB0:
-        size = ntohl(*(uint32_t *) (bytes + offset));
-        offset += 4;
-        break;
-      default:
-        return -2;
-      }
-
-      {
-        char *start = (char *) (bytes + offset);
-        switch (code & 0x0F)
-        {
-        case 0x0:
-          cb->on_binary(ctx, size, start);
-          break;
-        case 0x1:
-          cb->on_utf8(ctx, size, start);
-          break;
-        case 0x2:
-          cb->on_utf16(ctx, size, start);
-          break;
-        case 0x3:
-          cb->on_symbol(ctx, size, start);
-          break;
-        default:
-          return -3;
-        }
-      }
-
-      offset += size;
-      break;
-    case AMPE_LIST0:
-        count = 0;
-        cb->on_list(ctx, count);
-        break;
-    case AMPE_LIST8:
-    case AMPE_LIST32:
-    case AMPE_MAP8:
-    case AMPE_MAP32:
-      switch (code)
-      {
-      case AMPE_LIST8:
-      case AMPE_MAP8:
-        size = *(uint8_t *) (bytes + offset);
-        offset += 1;
-        count = *(uint8_t *) (bytes + offset);
-        offset += 1;
-        break;
-      case AMPE_LIST32:
-      case AMPE_MAP32:
-        size = ntohl(*(uint32_t *) (bytes + offset));
-        offset += 4;
-        count = ntohl(*(uint32_t *) (bytes + offset));
-        offset += 4;
-        break;
-      default:
-        return -4;
-      }
-
-      switch (code)
-      {
-      case AMPE_LIST8:
-      case AMPE_LIST32:
-        cb->on_list(ctx, count);
-        break;
-      case AMPE_MAP8:
-      case AMPE_MAP32:
-        cb->on_map(ctx, count);
-        break;
-      default:
-        return -5;
-      }
-      break;
-    default:
-      printf("Unrecognised typecode: %u\n", code);
-      return -6;
-    }
-  }
-
-  return offset;
-}
-
 ssize_t amp_read_datum(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx);
 
 ssize_t amp_read_type(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx, uint8_t *code)
@@ -670,15 +482,12 @@ void noop_binary(void *ctx, size_t size, char *bytes) {}
 void noop_utf8(void *ctx, size_t size, char *bytes) {}
 void noop_utf16(void *ctx, size_t size, char *bytes) {}
 void noop_symbol(void *ctx, size_t size, char *bytes) {}
-void noop_list(void *ctx, size_t count) {}
 void noop_start_array(void *ctx, size_t count, uint8_t code) {}
 void noop_stop_array(void *ctx, size_t count, uint8_t code) {}
 void noop_start_list(void *ctx, size_t count) {}
 void noop_stop_list(void *ctx, size_t count) {}
-void noop_map(void *ctx, size_t count) {}
 void noop_start_map(void *ctx, size_t count) {}
 void noop_stop_map(void *ctx, size_t count) {}
-void noop_descriptor(void *ctx) {}
 void noop_start_descriptor(void *ctx) {}
 void noop_stop_descriptor(void *ctx) {}
 
@@ -705,15 +514,12 @@ void print_binary(void *ctx, size_t size, char *bytes) { print_bytes("bin", size
 void print_utf8(void *ctx, size_t size, char *bytes) { print_bytes("utf8", size, bytes); }
 void print_utf16(void *ctx, size_t size, char *bytes) { print_bytes("utf16", size, bytes); }
 void print_symbol(void *ctx, size_t size, char *bytes) { print_bytes("sym", size, bytes); }
-void print_list(void *ctx, size_t count) { printf("begin list %zd\n", count); }
 void print_start_array(void *ctx, size_t count, uint8_t code) { printf("begin array %zd\n", count); }
 void print_stop_array(void *ctx, size_t count, uint8_t code) { printf("begin array %zd\n", count); }
 void print_start_list(void *ctx, size_t count) { printf("begin list %zd\n", count); }
 void print_stop_list(void *ctx, size_t count) { printf("begin list %zd\n", count); }
-void print_map(void *ctx, size_t count) { printf("begin map %zd\n", count); }
 void print_start_map(void *ctx, size_t count) { printf("begin map %zd\n", count); }
 void print_stop_map(void *ctx, size_t count) { printf("begin map %zd\n", count); }
-void print_descriptor(void *ctx) { printf("descriptor "); }
 void print_start_descriptor(void *ctx) { printf("descriptor "); }
 void print_stop_descriptor(void *ctx) { printf("descriptor "); }
 

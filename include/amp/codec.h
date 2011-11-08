@@ -65,9 +65,6 @@ typedef struct {
   void (*on_utf8)(void *ctx, size_t size, char *utf8);
   void (*on_utf16)(void *ctx, size_t size, char *utf16);
   void (*on_symbol)(void *ctx, size_t size, char *str);
-  void (*on_list)(void *ctx, size_t count);
-  void (*on_map)(void *ctx, size_t count);
-  void (*on_descriptor)(void *ctx);
   void (*start_descriptor)(void *ctx);
   void (*stop_descriptor)(void *ctx);
   void (*start_array)(void *ctx, size_t count, uint8_t code);
@@ -79,7 +76,6 @@ typedef struct {
 } amp_data_callbacks_t;
 
 ssize_t amp_read_datum(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ctx);
-ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*stop_function)(void *ctx), void *ctx);
 
 #define AMP_DATA_CALLBACKS(STEM) ((amp_data_callbacks_t) { \
   .on_null = & STEM ## _null,                              \
@@ -98,9 +94,6 @@ ssize_t amp_read_data(char *bytes, size_t n, amp_data_callbacks_t *cb, bool (*st
   .on_utf8 = & STEM ## _utf8,                              \
   .on_utf16 = & STEM ## _utf16,                            \
   .on_symbol = & STEM ## _symbol,                          \
-  .on_list = & STEM ## _list,                              \
-  .on_map = & STEM ## _map,                                \
-  .on_descriptor = & STEM ## _descriptor,                  \
   .start_descriptor = & STEM ## _start_descriptor,         \
   .stop_descriptor = & STEM ## _stop_descriptor,           \
   .start_array = & STEM ## _start_array,                   \
