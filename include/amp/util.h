@@ -22,6 +22,8 @@
  *
  */
 
+#include <stdarg.h>
+
 void amp_fatal(char *fmt, ...);
 void amp_vfatal(char *fmt, va_list ap);
 

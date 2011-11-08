@@ -204,4 +204,8 @@ amp_value_t amp_tag_value(amp_tag_t *t);
 size_t amp_vencode_sizeof_tag(amp_tag_t *t);
 size_t amp_vencode_tag(amp_tag_t *t, char *out);
 
+/* random */
+
+int amp_fmt(char **pos, char *limit, const char *fmt, ...);
+
 #endif /* value.h */
