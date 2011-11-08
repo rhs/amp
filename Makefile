@@ -1,4 +1,4 @@
-CFLAGS := -Wall -Werror -pedantic-errors -std=c99 -g -Iinclude
+CFLAGS := -Wall -Werror -pedantic-errors -std=c99 -g -Iinclude -fPIC
 PYTHON := python
 PYTHONPATH := ${realpath .}
 UTIL_SRC := src/util.c
@@ -24,13 +24,17 @@ HDRS := ${UTIL_HDR} ${VALUE_HDR} \
 	src/codec/encodings.h
 
 PROGRAMS := src/amp
+LIBRARY := src/librhsamp.so
 
-all: ${PROGRAMS}
+all: ${PROGRAMS} ${LIBRARY}
 
 # pull in dependency info for *existing* .o files
 -include ${DEPS}
 
 ${PROGRAMS}: ${OBJS}
+
+${LIBRARY}: ${OBJS}
+	$(CC) $(CCFLAGS) -shared -o $@ $^
 
 ${OBJS}: ${HDRS}
 ${OBJS}: %.o: %.c

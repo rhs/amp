@@ -187,9 +187,6 @@ void amp_decode_utf8(void *ctx, size_t size, char *bytes) {
   iconv_close(cd);
   value->u.as_string = (amp_string_t) {.size = wcslen(buf), .wcs = buf};
 }
-void amp_decode_utf16(void *ctx, size_t size, char *bytes) {
-  // XXX: this encoding no longer exists
-}
 void amp_decode_symbol(void *ctx, size_t size, char *bytes) {
   //  amp_value_t *value = next_value(ctx);
   //  value->type = SYMBOL;

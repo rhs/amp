@@ -63,7 +63,6 @@ typedef struct {
   void (*on_double)(void *ctx, double v);
   void (*on_binary)(void *ctx, size_t size, char *bytes);
   void (*on_utf8)(void *ctx, size_t size, char *utf8);
-  void (*on_utf16)(void *ctx, size_t size, char *utf16);
   void (*on_symbol)(void *ctx, size_t size, char *str);
   void (*start_descriptor)(void *ctx);
   void (*stop_descriptor)(void *ctx);
@@ -92,7 +91,6 @@ ssize_t amp_read_datum(char *bytes, size_t n, amp_data_callbacks_t *cb, void *ct
   .on_double = & STEM ## _double,                          \
   .on_binary = & STEM ## _binary,                          \
   .on_utf8 = & STEM ## _utf8,                              \
-  .on_utf16 = & STEM ## _utf16,                            \
   .on_symbol = & STEM ## _symbol,                          \
   .start_descriptor = & STEM ## _start_descriptor,         \
   .stop_descriptor = & STEM ## _stop_descriptor,           \

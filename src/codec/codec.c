@@ -346,9 +346,6 @@ ssize_t amp_read_encoding(char *bytes, size_t n, amp_data_callbacks_t *cb, void 
       case 0x1:
         cb->on_utf8(ctx, size, start);
         break;
-      case 0x2:
-        cb->on_utf16(ctx, size, start);
-        break;
       case 0x3:
         cb->on_symbol(ctx, size, start);
         break;
@@ -480,7 +477,6 @@ void noop_long(void *ctx, int64_t v) {}
 void noop_double(void *ctx, double v) {}
 void noop_binary(void *ctx, size_t size, char *bytes) {}
 void noop_utf8(void *ctx, size_t size, char *bytes) {}
-void noop_utf16(void *ctx, size_t size, char *bytes) {}
 void noop_symbol(void *ctx, size_t size, char *bytes) {}
 void noop_start_array(void *ctx, size_t count, uint8_t code) {}
 void noop_stop_array(void *ctx, size_t count, uint8_t code) {}
@@ -512,7 +508,6 @@ void print_bytes(char *label, int size, char *bytes) {
 
 void print_binary(void *ctx, size_t size, char *bytes) { print_bytes("bin", size, bytes); }
 void print_utf8(void *ctx, size_t size, char *bytes) { print_bytes("utf8", size, bytes); }
-void print_utf16(void *ctx, size_t size, char *bytes) { print_bytes("utf16", size, bytes); }
 void print_symbol(void *ctx, size_t size, char *bytes) { print_bytes("sym", size, bytes); }
 void print_start_array(void *ctx, size_t count, uint8_t code) { printf("begin array %zd\n", count); }
 void print_stop_array(void *ctx, size_t count, uint8_t code) { printf("begin array %zd\n", count); }
