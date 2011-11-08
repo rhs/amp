@@ -65,7 +65,7 @@ int value(int argc, char **argv)
     char buf[amp_encode_sizeof(v[i])];
     size_t size = amp_encode(v[i], buf);
     amp_value_t value;
-    size_t read = amp_vdecode(&value, buf, size);
+    size_t read = amp_decode(&value, buf, size);
     printf("read=%li: ", read); print(value);
   }
 

@@ -159,7 +159,7 @@ char *amp_aformat(amp_value_t v);
 
 size_t amp_encode_sizeof(amp_value_t v);
 size_t amp_encode(amp_value_t v, char *out);
-ssize_t amp_vdecode(amp_value_t *v, char *bytes, size_t n);
+ssize_t amp_decode(amp_value_t *v, char *bytes, size_t n);
 
 /* scalars */
 #define amp_ulong(V) ((amp_value_t) {.type = ULONG, .u.as_ulong = (V)})
