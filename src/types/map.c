@@ -24,7 +24,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-amp_map_t *amp_vmap(int capacity)
+amp_map_t *amp_map(int capacity)
 {
   amp_map_t *map = malloc(sizeof(amp_map_t) + 2*capacity*sizeof(amp_value_t));
   map->capacity = capacity;
@@ -32,12 +32,12 @@ amp_map_t *amp_vmap(int capacity)
   return map;
 }
 
-amp_value_t amp_vmap_key(amp_map_t *map, int index)
+amp_value_t amp_map_key(amp_map_t *map, int index)
 {
   return map->pairs[2*index];
 }
 
-amp_value_t amp_vmap_value(amp_map_t *map, int index)
+amp_value_t amp_map_value(amp_map_t *map, int index)
 {
   return map->pairs[2*index+1];
 }
@@ -49,8 +49,8 @@ int amp_format_map(char **pos, char *limit, amp_map_t *map)
   if ((e = amp_fmt(pos, limit, "{"))) return e;
   for (i = 0; i < map->size; i++)
   {
-    amp_value_t key = amp_vmap_key(map, i);
-    amp_value_t value = amp_vmap_value(map, i);
+    amp_value_t key = amp_map_key(map, i);
+    amp_value_t value = amp_map_value(map, i);
     if (first) first = false;
     else if ((e = amp_fmt(pos, limit, ", "))) return e;
     if ((e = amp_format_value(pos, limit, &key, 1))) return e;
@@ -67,8 +67,8 @@ uintptr_t amp_hash_map(amp_map_t *map)
   int i;
   for (i = 0; i < map->size; i++)
   {
-    hash += (amp_hash_value(amp_vmap_key(map, i)) ^
-             amp_hash_value(amp_vmap_value(map, i)));
+    hash += (amp_hash_value(amp_map_key(map, i)) ^
+             amp_hash_value(amp_map_value(map, i)));
   }
   return hash;
 }
@@ -78,8 +78,8 @@ static bool has_entry(amp_map_t *m, amp_value_t key, amp_value_t value)
   int i;
   for (i = 0; i < m->size; i++)
   {
-    if (!amp_compare_value(amp_vmap_key(m, i), key) &&
-        !amp_compare_value(amp_vmap_value(m, i), value))
+    if (!amp_compare_value(amp_map_key(m, i), key) &&
+        !amp_compare_value(amp_map_value(m, i), value))
       return true;
   }
 
@@ -94,43 +94,43 @@ int amp_compare_map(amp_map_t *a, amp_map_t *b)
     return b->size - a->size;
 
   for (i = 0; i < a->size; i++)
-    if (!has_entry(b, amp_vmap_key(a, i), amp_vmap_value(a, i)))
+    if (!has_entry(b, amp_map_key(a, i), amp_map_value(a, i)))
       return -1;
 
   for (i = 0; i < b->size; i++)
-    if (!has_entry(a, amp_vmap_key(b, i), amp_vmap_value(b, i)))
+    if (!has_entry(a, amp_map_key(b, i), amp_map_value(b, i)))
       return -1;
 
   return 0;
 }
 
-bool amp_vmap_has(amp_map_t *map, amp_value_t key)
+bool amp_map_has(amp_map_t *map, amp_value_t key)
 {
   for (int i = 0; i < map->size; i++)
   {
-    if (!amp_compare_value(key, amp_vmap_key(map, i)))
+    if (!amp_compare_value(key, amp_map_key(map, i)))
       return true;
   }
 
   return false;
 }
 
-amp_value_t amp_vmap_get(amp_map_t *map, amp_value_t key)
+amp_value_t amp_map_get(amp_map_t *map, amp_value_t key)
 {
   for (int i = 0; i < map->size; i++)
   {
-    if (!amp_compare_value(key, amp_vmap_key(map, i)))
-      return amp_vmap_value(map, i);
+    if (!amp_compare_value(key, amp_map_key(map, i)))
+      return amp_map_value(map, i);
   }
 
   return EMPTY_VALUE;
 }
 
-int amp_vmap_set(amp_map_t *map, amp_value_t key, amp_value_t value)
+int amp_map_set(amp_map_t *map, amp_value_t key, amp_value_t value)
 {
   for (int i = 0; i < map->size; i++)
   {
-    if (!amp_compare_value(key, amp_vmap_key(map, i)))
+    if (!amp_compare_value(key, amp_map_key(map, i)))
     {
       map->pairs[2*i + 1] = value;
       return 0;
@@ -150,13 +150,13 @@ int amp_vmap_set(amp_map_t *map, amp_value_t key, amp_value_t value)
   }
 }
 
-amp_value_t amp_vmap_pop(amp_map_t *map, amp_value_t key)
+amp_value_t amp_map_pop(amp_map_t *map, amp_value_t key)
 {
   for (int i = 0; i < map->size; i++)
   {
-    if (!amp_compare_value(key, amp_vmap_key(map, i)))
+    if (!amp_compare_value(key, amp_map_key(map, i)))
     {
-      amp_value_t result = amp_vmap_value(map, i);
+      amp_value_t result = amp_map_value(map, i);
       memmove(&map->pairs[2*i], &map->pairs[2*(i+1)],
               (map->size - i - 1)*2*sizeof(amp_value_t));
       map->size--;
@@ -167,12 +167,12 @@ amp_value_t amp_vmap_pop(amp_map_t *map, amp_value_t key)
   return EMPTY_VALUE;
 }
 
-int amp_vmap_size(amp_map_t *map)
+int amp_map_size(amp_map_t *map)
 {
   return map->size;
 }
 
-int amp_vmap_capacity(amp_map_t *map)
+int amp_map_capacity(amp_map_t *map)
 {
   return map->capacity;
 }

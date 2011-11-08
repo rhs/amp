@@ -308,7 +308,7 @@ int amp_vscan(amp_value_t *value, const char *fmt, va_list ap)
     case '{':
       stack[level] = (stack_frame_t) {value, scan_size(fmt+1)};
       value->type = MAP;
-      value->u.as_map = amp_vmap(stack[level].count/2);
+      value->u.as_map = amp_map(stack[level].count/2);
       value->u.as_map->size = stack[level].count/2;
       value = value->u.as_map->pairs;
       level++;

@@ -189,10 +189,10 @@ size_t amp_vencode_list(amp_list_t *l, char *out);
 
 /* maps */
 
-amp_map_t *amp_vmap(int capacity);
-int amp_vmap_set(amp_map_t *map, amp_value_t key, amp_value_t value);
-amp_value_t amp_vmap_get(amp_map_t *map, amp_value_t key);
-amp_value_t amp_vmap_pop(amp_map_t *map, amp_value_t key);
+amp_map_t *amp_map(int capacity);
+int amp_map_set(amp_map_t *map, amp_value_t key, amp_value_t value);
+amp_value_t amp_map_get(amp_map_t *map, amp_value_t key);
+amp_value_t amp_map_pop(amp_map_t *map, amp_value_t key);
 size_t amp_vencode_sizeof_map(amp_map_t *map);
 size_t amp_vencode_map(amp_map_t *m, char *out);
 

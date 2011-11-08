@@ -220,7 +220,7 @@ void amp_vdecode_stop_list(void *ctx, size_t count) {}
 void amp_vdecode_map(void *ctx, size_t count) {}
 
 void amp_vdecode_start_map(void *ctx, size_t count) {
-  amp_map_t *map = amp_vmap(count/2);
+  amp_map_t *map = amp_map(count/2);
   map->size = count/2;
   amp_value_t *value = push_frame(ctx, map->pairs, count);
   value->type = MAP;

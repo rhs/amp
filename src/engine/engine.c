@@ -40,9 +40,9 @@ struct amp_engine_t {
   size_t capacity;
 };
 
-  /*  amp_vmap_set(MAP, amp_symbol(AMP_HEAP, NAME ## _SYM), amp_ulong(AMP_HEAP, NAME)); \ */
+  /*  amp_map_set(MAP, amp_symbol(AMP_HEAP, NAME ## _SYM), amp_ulong(AMP_HEAP, NAME)); \ */
 #define __DISPATCH(MAP, NAME)                                           \
-  amp_vmap_set(MAP, amp_ulong(NAME ## _CODE), amp_ulong(NAME))
+  amp_map_set(MAP, amp_ulong(NAME ## _CODE), amp_ulong(NAME))
 
 amp_engine_t *amp_engine_create(amp_connection_t *connection)
 {
@@ -50,7 +50,7 @@ amp_engine_t *amp_engine_create(amp_connection_t *connection)
   if (o) {
     o->connection = connection;
 
-    amp_map_t *m = amp_vmap(32);
+    amp_map_t *m = amp_map(32);
     o->dispatch = m;
 
     __DISPATCH(m, OPEN);
@@ -316,7 +316,7 @@ void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_tag_t *performat
 {
   amp_value_t desc = amp_tag_descriptor(performative);
   amp_list_t *args = amp_to_list(amp_tag_value(performative));
-  amp_value_t cval = amp_vmap_get(e->dispatch, desc);
+  amp_value_t cval = amp_map_get(e->dispatch, desc);
   uint8_t code = amp_to_uint8(cval);
   switch (code)
   {

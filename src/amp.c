@@ -49,7 +49,7 @@ int value(int argc, char **argv)
   amp_map_t *map = amp_to_map(amp_list_get(list, 3));
   print(amp_list_get(list, 3));
   printf("POP: ");
-  print(amp_vmap_pop(map, amp_value("S", L"key")));
+  print(amp_map_pop(map, amp_value("S", L"key")));
 
   printf("scanned %i values\n", count);
   for (int i = 0; i < count; i++) {
