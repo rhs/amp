@@ -162,17 +162,17 @@ int amp_compare_list(amp_list_t *a, amp_list_t *b)
   return 0;
 }
 
-size_t amp_vencode_sizeof_list(amp_list_t *l)
+size_t amp_encode_sizeof_list(amp_list_t *l)
 {
   size_t result = 9;
   for (int i = 0; i < l->size; i++)
   {
-    result += amp_vencode_sizeof(l->values[i]);
+    result += amp_encode_sizeof(l->values[i]);
   }
   return result;
 }
 
-size_t amp_vencode_list(amp_list_t *l, char *out)
+size_t amp_encode_list(amp_list_t *l, char *out)
 {
   char *old = out;
   char *start;
@@ -180,7 +180,7 @@ size_t amp_vencode_list(amp_list_t *l, char *out)
   amp_write_start(&out, out + 1024, &start);
   for (int i = 0; i < l->size; i++)
   {
-    out += amp_vencode(l->values[i], out);
+    out += amp_encode(l->values[i], out);
   }
   amp_write_list(&out, out + 1024, start, l->size);
   return out - old;

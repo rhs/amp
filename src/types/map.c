@@ -177,17 +177,17 @@ int amp_map_capacity(amp_map_t *map)
   return map->capacity;
 }
 
-size_t amp_vencode_sizeof_map(amp_map_t *m)
+size_t amp_encode_sizeof_map(amp_map_t *m)
 {
   size_t result = 0;
   for (int i = 0; i < 2*m->size; i++)
   {
-    result += amp_vencode_sizeof(m->pairs[i]);
+    result += amp_encode_sizeof(m->pairs[i]);
   }
   return result;
 }
 
-size_t amp_vencode_map(amp_map_t *m, char *out)
+size_t amp_encode_map(amp_map_t *m, char *out)
 {
   char *old = out;
   char *start;
@@ -196,7 +196,7 @@ size_t amp_vencode_map(amp_map_t *m, char *out)
   amp_write_start(&out, out + 1024, &start);
   for (int i = 0; i < count; i++)
   {
-    out += amp_vencode(m->pairs[i], out);
+    out += amp_encode(m->pairs[i], out);
   }
   amp_write_map(&out, out + 1024, start, m->size);
   return out - old;
@@ -234,16 +234,16 @@ int amp_format_tag(char **pos, char *limit, amp_tag_t *tag)
   return 0;
 }
 
-size_t amp_vencode_sizeof_tag(amp_tag_t *t)
+size_t amp_encode_sizeof_tag(amp_tag_t *t)
 {
-  return 1 + amp_vencode_sizeof(t->descriptor) + amp_vencode_sizeof(t->value);
+  return 1 + amp_encode_sizeof(t->descriptor) + amp_encode_sizeof(t->value);
 }
 
-size_t amp_vencode_tag(amp_tag_t *t, char *out)
+size_t amp_encode_tag(amp_tag_t *t, char *out)
 {
   size_t size = 1;
   amp_write_descriptor(&out, out + 1);
-  size += amp_vencode(t->descriptor, out);
-  size += amp_vencode(t->value, out + size - 1);
+  size += amp_encode(t->descriptor, out);
+  size += amp_encode(t->value, out + size - 1);
   return size;
 }

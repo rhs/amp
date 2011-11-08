@@ -97,18 +97,18 @@ int amp_format_array(char **pos, char *limit, amp_array_t *array)
   return 0;
 }
 
-size_t amp_vencode_sizeof_array(amp_array_t *array)
+size_t amp_encode_sizeof_array(amp_array_t *array)
 {
   size_t result = 9;
   for (int i = 0; i < array->size; i++)
   {
     // XXX: this is wrong, need to compensate for code
-    result += amp_vencode_sizeof(array->values[i]);
+    result += amp_encode_sizeof(array->values[i]);
   }
   return result;
 }
 
-size_t amp_vencode_array(amp_array_t *array, char *out)
+size_t amp_encode_array(amp_array_t *array, char *out)
 {
   // code
   out[0] = (uint8_t) AMPE_ARRAY32;
@@ -123,7 +123,7 @@ size_t amp_vencode_array(amp_array_t *array, char *out)
   {
     char *codeptr = vout - 1;
     char codeval = *codeptr;
-    vout += amp_vencode(array->values[i], vout-1) - 1;
+    vout += amp_encode(array->values[i], vout-1) - 1;
     *codeptr = codeval;
   }
 

@@ -145,7 +145,7 @@ void amp_engine_post_frame(amp_engine_t *eng, uint16_t ch, uint32_t performative
   tag.value = amp_from_list(eng->args);
   fprintf(stderr, "POST: %s\n", amp_aformat(amp_from_tag(&tag)));
   // XXX: sizeof
-  size_t size = amp_vencode(amp_from_tag(&tag), bytes);
+  size_t size = amp_encode(amp_from_tag(&tag), bytes);
   if (eng->payload_size) {
     memmove(bytes + size, eng->payload_bytes, eng->payload_size);
     size += eng->payload_size;

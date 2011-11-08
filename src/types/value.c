@@ -556,7 +556,7 @@ char *amp_aformat(amp_value_t v)
   }
 }
 
-size_t amp_vencode_sizeof(amp_value_t v)
+size_t amp_encode_sizeof(amp_value_t v)
 {
   switch (v.type)
   {
@@ -583,23 +583,23 @@ size_t amp_vencode_sizeof(amp_value_t v)
   case BINARY:
     return 5 + v.u.as_binary.size;
   case ARRAY:
-    return amp_vencode_sizeof_array(v.u.as_array);
+    return amp_encode_sizeof_array(v.u.as_array);
   case LIST:
-    return amp_vencode_sizeof_list(v.u.as_list);
+    return amp_encode_sizeof_list(v.u.as_list);
   case MAP:
-    return amp_vencode_sizeof_map(v.u.as_map);
+    return amp_encode_sizeof_map(v.u.as_map);
   case TAG:
-    return amp_vencode_sizeof_tag(v.u.as_tag);
+    return amp_encode_sizeof_tag(v.u.as_tag);
   default:
     amp_fatal("unencodable type: %s", amp_aformat(v));
     return 0;
   }
 }
 
-size_t amp_vencode(amp_value_t v, char *out)
+size_t amp_encode(amp_value_t v, char *out)
 {
   char *old = out;
-  size_t size = amp_vencode_sizeof(v);
+  size_t size = amp_encode_sizeof(v);
   iconv_t cd;
   char *inbuf;
   size_t insize;
@@ -660,13 +660,13 @@ size_t amp_vencode(amp_value_t v, char *out)
     amp_write_binary(&out, out + size, v.u.as_binary.size, v.u.as_binary.bytes);
     return 5 + v.u.as_binary.size;
   case ARRAY:
-    return amp_vencode_array(v.u.as_array, out);
+    return amp_encode_array(v.u.as_array, out);
   case LIST:
-    return amp_vencode_list(v.u.as_list, out);
+    return amp_encode_list(v.u.as_list, out);
   case MAP:
-    return amp_vencode_map(v.u.as_map, out);
+    return amp_encode_map(v.u.as_map, out);
   case TAG:
-    return amp_vencode_tag(v.u.as_tag, out);
+    return amp_encode_tag(v.u.as_tag, out);
   default:
     amp_fatal("unencodable type: %s", amp_aformat(v));
     return 0;

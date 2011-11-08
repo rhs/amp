@@ -157,8 +157,8 @@ int amp_format_tag(char **pos, char *limit, amp_tag_t *tag);
 int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n);
 char *amp_aformat(amp_value_t v);
 
-size_t amp_vencode_sizeof(amp_value_t v);
-size_t amp_vencode(amp_value_t v, char *out);
+size_t amp_encode_sizeof(amp_value_t v);
+size_t amp_encode(amp_value_t v, char *out);
 ssize_t amp_vdecode(amp_value_t *v, char *bytes, size_t n);
 
 /* scalars */
@@ -170,8 +170,8 @@ ssize_t amp_vdecode(amp_value_t *v, char *bytes, size_t n);
 
 amp_array_t *amp_array(enum TYPE type, int capacity);
 amp_value_t amp_array_get(amp_array_t *a, int index);
-size_t amp_vencode_sizeof_array(amp_array_t *a);
-size_t amp_vencode_array(amp_array_t *array, char *out);
+size_t amp_encode_sizeof_array(amp_array_t *a);
+size_t amp_encode_array(amp_array_t *array, char *out);
 
 /* lists */
 
@@ -184,8 +184,8 @@ int amp_list_extend(amp_list_t *l, const char *fmt, ...);
 int amp_list_fill(amp_list_t *l, amp_value_t v, int n);
 void amp_list_clear(amp_list_t *l);
 int amp_list_size(amp_list_t *l);
-size_t amp_vencode_sizeof_list(amp_list_t *l);
-size_t amp_vencode_list(amp_list_t *l, char *out);
+size_t amp_encode_sizeof_list(amp_list_t *l);
+size_t amp_encode_list(amp_list_t *l, char *out);
 
 /* maps */
 
@@ -193,16 +193,16 @@ amp_map_t *amp_map(int capacity);
 int amp_map_set(amp_map_t *map, amp_value_t key, amp_value_t value);
 amp_value_t amp_map_get(amp_map_t *map, amp_value_t key);
 amp_value_t amp_map_pop(amp_map_t *map, amp_value_t key);
-size_t amp_vencode_sizeof_map(amp_map_t *map);
-size_t amp_vencode_map(amp_map_t *m, char *out);
+size_t amp_encode_sizeof_map(amp_map_t *map);
+size_t amp_encode_map(amp_map_t *m, char *out);
 
 /* tags */
 
 amp_tag_t *amp_tag(amp_value_t descriptor, amp_value_t value);
 amp_value_t amp_tag_descriptor(amp_tag_t *t);
 amp_value_t amp_tag_value(amp_tag_t *t);
-size_t amp_vencode_sizeof_tag(amp_tag_t *t);
-size_t amp_vencode_tag(amp_tag_t *t, char *out);
+size_t amp_encode_sizeof_tag(amp_tag_t *t);
+size_t amp_encode_tag(amp_tag_t *t, char *out);
 
 /* random */
 
