@@ -24,9 +24,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <amp/box.h>
 
 typedef struct amp_error_t amp_error_t;
 typedef struct amp_connection_t amp_connection_t;
@@ -36,7 +36,6 @@ typedef struct amp_engine_t amp_engine_t;
 
 // internal
 struct amp_error_t {
-  AMP_HEAD;
   int code;
   // ...
 };

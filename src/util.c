@@ -1,6 +1,3 @@
-#ifndef _AMP_ENCODER_H
-#define _AMP_ENCODER_H 1
-
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,15 +19,20 @@
  *
  */
 
-#include <iconv.h>
-#include <amp/allocation.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-typedef struct {
-  iconv_t utf8;
-  iconv_t utf16;
-} amp_encoder_t;
+void amp_vfatal(char *fmt, va_list ap)
+{
+  vfprintf(stderr, fmt, ap);
+  exit(-1);
+}
 
-amp_encoder_t *amp_encoder(amp_region_t *mem);
-void amp_encoder_init(amp_encoder_t *enc);
-
-#endif /* decoder.h */
+void amp_fatal(char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  amp_vfatal(fmt, ap);
+  va_end(ap);
+}

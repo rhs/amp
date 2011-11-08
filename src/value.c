@@ -19,8 +19,9 @@
  *
  */
 
-#include <amp/value.h>
 #include <amp/codec.h>
+#include <amp/value.h>
+#include <amp/util.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -55,6 +56,8 @@ int amp_compare_value(amp_value_t a, amp_value_t b)
     {
     case EMPTY:
       return 0;
+    case BOOLEAN:
+      return b.u.as_boolean && a.u.as_boolean;
     case UBYTE:
       return b.u.as_ubyte - a.u.as_ubyte;
     case USHORT:
@@ -81,8 +84,10 @@ int amp_compare_value(amp_value_t a, amp_value_t b)
       return amp_compare_string(a.u.as_string, b.u.as_string);
     case BINARY:
       return amp_compare_binary(a.u.as_binary, b.u.as_binary);
+    case REF:
+      return (char *)b.u.as_ref - (char *)a.u.as_ref;
     default:
-      // XXX
+      amp_fatal("uncomparable: %s, %s", amp_aformat(a), amp_aformat(b));
       return -1;
     }
   } else {
@@ -208,7 +213,9 @@ static enum TYPE code_to_type(char c)
   case 'z': return BINARY;
   case 't': return LIST;
   case 'm': return MAP;
-  default: return -1;  // XXX: should be fatal error
+  default:
+    amp_fatal("unrecognized code: %c", c);
+    return -1;
   }
 }
 
@@ -258,9 +265,10 @@ static uint8_t type_to_amqp_code(enum TYPE type)
   case LIST: return AMPE_LIST32;
   case MAP: return AMPE_MAP32;
   case ARRAY: return AMPE_ARRAY32;
-  case TAG: return -1;
+  default:
+    amp_fatal("no amqp code for type: %i", type);
+    return -1;
   }
-  return -1;
 }
 
 static enum TYPE amqp_code_to_type(uint8_t code)
@@ -462,6 +470,11 @@ amp_tag_t *amp_to_tag(amp_value_t v)
   return v.u.as_tag;
 }
 
+void *amp_to_ref(amp_value_t v)
+{
+  return v.u.as_ref;
+}
+
 amp_value_t amp_from_list(amp_list_t *l)
 {
   return (amp_value_t) {.type = LIST, .u.as_list = l};
@@ -475,6 +488,11 @@ amp_value_t amp_from_map(amp_map_t *m)
 amp_value_t amp_from_tag(amp_tag_t *t)
 {
   return (amp_value_t) {.type = TAG, .u.as_tag = t};
+}
+
+amp_value_t amp_from_ref(void *r)
+{
+  return (amp_value_t) {.type = REF, .u.as_ref = r};
 }
 
 int amp_format_binary(char **pos, char *limit, amp_binary_t binary)
@@ -595,6 +613,9 @@ int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n)
     case TAG:
       if ((e = amp_format_tag(pos, limit, v.u.as_tag))) return e;
       break;
+    case REF:
+      if ((e = amp_fmt(pos, limit, "%p", v.u.as_ref))) return e;
+      break;
     }
   }
 
@@ -658,10 +679,10 @@ size_t amp_vencode_sizeof(amp_value_t v)
     return amp_vencode_sizeof_map(v.u.as_map);
   case TAG:
     return amp_vencode_sizeof_tag(v.u.as_tag);
+  default:
+    amp_fatal("unencodable type: %s", amp_aformat(v));
+    return 0;
   }
-
-  // XXX: fatal error
-  return 0;
 }
 
 size_t amp_vencode(amp_value_t v, char *out)
@@ -735,9 +756,10 @@ size_t amp_vencode(amp_value_t v, char *out)
     return amp_vencode_map(v.u.as_map, out);
   case TAG:
     return amp_vencode_tag(v.u.as_tag, out);
+  default:
+    amp_fatal("unencodable type: %s", amp_aformat(v));
+    return 0;
   }
-
-  return 0;
 }
 
 /* arrays */
@@ -1098,7 +1120,6 @@ amp_value_t amp_vmap_pop(amp_map_t *map, amp_value_t key)
       amp_value_t result = amp_vmap_value(map, i);
       memmove(&map->pairs[2*i], &map->pairs[2*(i+1)],
               (map->size - i - 1)*2*sizeof(amp_value_t));
-      // XXX: this doesn't work because it's on a copy
       map->size--;
       return result;
     }

@@ -47,7 +47,8 @@ enum TYPE {
   ARRAY,
   LIST,
   MAP,
-  TAG
+  TAG,
+  REF
 };
 
 typedef struct amp_value_st amp_value_t;
@@ -89,6 +90,7 @@ struct  amp_value_st {
     amp_list_t *as_list;
     amp_map_t *as_map;
     amp_tag_t *as_tag;
+    void *as_ref;
   } u;
 };
 
@@ -126,10 +128,12 @@ amp_value_t amp_vvalue(const char *fmt, va_list ap);
 amp_list_t *amp_to_list(amp_value_t v);
 amp_map_t *amp_to_map(amp_value_t v);
 amp_tag_t *amp_to_tag(amp_value_t v);
+void *amp_to_ref(amp_value_t v);
 
 amp_value_t amp_from_list(amp_list_t *l);
 amp_value_t amp_from_map(amp_map_t *m);
 amp_value_t amp_from_tag(amp_tag_t *t);
+amp_value_t amp_from_ref(void *r);
 
 int amp_compare_string(amp_string_t a, amp_string_t b);
 int amp_compare_binary(amp_binary_t a, amp_binary_t b);
@@ -158,9 +162,9 @@ size_t amp_vencode(amp_value_t v, char *out);
 ssize_t amp_vdecode(amp_value_t *v, char *bytes, size_t n);
 
 /* scalars */
-#define amp_ulong(V) ((struct amp_value_st) {.type = ULONG, .u.as_ulong = (V)})
+#define amp_ulong(V) ((amp_value_t) {.type = ULONG, .u.as_ulong = (V)})
 #define amp_to_uint8(V) ((V).u.as_ubyte)
-#define amp_boolean(V) ((struct amp_value_st) {.type = BOOLEAN, .u.as_boolean = (V)})
+#define amp_boolean(V) ((amp_value_t) {.type = BOOLEAN, .u.as_boolean = (V)})
 
 /* arrays */
 
@@ -174,6 +178,8 @@ size_t amp_vencode_array(amp_array_t *array, char *out);
 amp_list_t *amp_vlist(int capacity);
 amp_value_t amp_vlist_get(amp_list_t *l, int index);
 amp_value_t amp_vlist_set(amp_list_t *l, int index, amp_value_t v);
+int amp_vlist_add(amp_list_t *l, amp_value_t v);
+bool amp_vlist_remove(amp_list_t *l, amp_value_t v);
 int amp_vlist_extend(amp_list_t *l, const char *fmt, ...);
 int amp_vlist_fill(amp_list_t *l, amp_value_t v, int n);
 void amp_vlist_clear(amp_list_t *l);

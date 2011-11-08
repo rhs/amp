@@ -19,15 +19,11 @@
  *
  */
 
-#include <amp/allocation.h>
 #include <amp/engine.h>
-#include <amp/type.h>
-#include <amp/scalars.h>
-#include <amp/list.h>
+#include <amp/value.h>
 #include "../protocol.h"
 
 struct amp_connection_t {
-  AMP_HEAD;
   amp_error_t error;
   bool open;
   wchar_t *container;
@@ -39,27 +35,19 @@ struct amp_connection_t {
   bool close_rcvd;
 };
 
-AMP_TYPE_DECL(CONNECTION, connection)
-
-amp_type_t *CONNECTION = &AMP_TYPE(connection);
-
 amp_connection_t *amp_connection_create() {
-  amp_connection_t *o = amp_allocate(AMP_HEAP, NULL, sizeof(amp_connection_t));
-  o->type = CONNECTION;
+  amp_connection_t *o = malloc(sizeof(amp_connection_t));
   o->open = false;
   o->container = NULL;
   o->hostname = NULL;
-  o->sessions = amp_list(AMP_HEAP, 16);
+  // XXX: max sessions
+  o->sessions = amp_vlist(16);
   o->open_sent = false;
   o->open_rcvd = false;
   o->close_sent = false;
   o->close_rcvd = false;
   return o;
 }
-
-AMP_DEFAULT_INSPECT(connection)
-AMP_DEFAULT_HASH(connection)
-AMP_DEFAULT_COMPARE(connection)
 
 int amp_connection_open(amp_connection_t *c) {
   c->open = true;
@@ -84,16 +72,16 @@ wchar_t *amp_connection_hostname(amp_connection_t *c) {
 }
 
 int amp_connection_sessions(amp_connection_t *conn) {
-  return amp_list_size(conn->sessions);
+  return amp_vlist_size(conn->sessions);
 }
 
 amp_session_t *amp_connection_get_session(amp_connection_t *conn, int index) {
-  return amp_list_get(conn->sessions, index);
+  return amp_to_ref(amp_vlist_get(conn->sessions, index));
 }
 
 void amp_connection_add(amp_connection_t *conn, amp_session_t *ssn) {
-  int num = amp_list_size(conn->sessions);
-  amp_list_add(conn->sessions, ssn);
+  int num = amp_vlist_size(conn->sessions);
+  amp_vlist_add(conn->sessions, amp_from_ref(ssn));
   amp_session_bind(ssn, conn, num);
 }
 

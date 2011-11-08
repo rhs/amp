@@ -19,13 +19,10 @@
  *
  */
 
-#include <amp/allocation.h>
 #include <amp/engine.h>
-#include <amp/type.h>
-#include <amp/list.h>
+#include <amp/value.h>
 
 struct amp_session_t {
-  AMP_HEAD;
   amp_connection_t *connection;
   int channel;
   int remote_channel;
@@ -41,18 +38,13 @@ struct amp_session_t {
   uint32_t outgoing_window;
 };
 
-AMP_TYPE_DECL(SESSION, session)
-
-amp_type_t *SESSION = &AMP_TYPE(session);
-
 amp_session_t *amp_session_create()
 {
-  amp_session_t *o = amp_allocate(AMP_HEAP, NULL, sizeof(amp_session_t));
-  o->type = SESSION;
+  amp_session_t *o = malloc(sizeof(amp_session_t));
   o->connection = NULL;
   o->channel = -1;
   o->remote_channel = -1;
-  o->links = amp_list(AMP_HEAP, 16);
+  o->links = amp_vlist(16);
   o->begun = false;
   o->begin_sent = false;
   o->begin_rcvd = false;
@@ -63,10 +55,6 @@ amp_session_t *amp_session_create()
   o->outgoing_window = 65536;
   return o;
 }
-
-AMP_DEFAULT_INSPECT(session)
-AMP_DEFAULT_HASH(session)
-AMP_DEFAULT_COMPARE(session)
 
 int amp_session_begin(amp_session_t *session)
 {
@@ -106,12 +94,12 @@ int amp_session_out_win(amp_session_t *session)
 
 int amp_session_links(amp_session_t *session)
 {
-  return amp_list_size(session->links);
+  return amp_vlist_size(session->links);
 }
 
 amp_link_t *amp_session_get_link(amp_session_t *session, int index)
 {
-  return amp_list_get(session->links, index);
+  return amp_to_ref(amp_vlist_get(session->links, index));
 }
 
 void amp_session_bind(amp_session_t *ssn, amp_connection_t *conn, int channel)
@@ -122,8 +110,8 @@ void amp_session_bind(amp_session_t *ssn, amp_connection_t *conn, int channel)
 
 void amp_session_add(amp_session_t *ssn, amp_link_t *link)
 {
-  int handle = amp_list_size(ssn->links);
-  amp_list_add(ssn->links, link);
+  int handle = amp_vlist_size(ssn->links);
+  amp_vlist_add(ssn->links, amp_from_ref(link));
   amp_link_bind(link, ssn, handle);
 }
 

@@ -24,21 +24,17 @@
 #include <poll.h>
 #include <stdio.h>
 #include <time.h>
-#include <amp/type.h>
-#include <amp/list.h>
 #include <amp/driver.h>
+#include <amp/value.h>
 #include "util.h"
 
 /* Decls */
 
 struct amp_driver_t {
-  AMP_HEAD;
   amp_list_t *selectables;
-  amp_region_t *region;
 };
 
 struct amp_selectable_st {
-  AMP_HEAD;
   amp_driver_t *driver;
   int fd;
   int status;
@@ -46,52 +42,27 @@ struct amp_selectable_st {
   void (*readable)(amp_selectable_t *s);
   void (*writable)(amp_selectable_t *s);
   time_t (*tick)(amp_selectable_t *s, time_t now);
-  amp_region_t *region;
   void *context;
 };
 
 /* Impls */
 
-amp_type_t *DRIVER = &AMP_TYPE(driver);
-
-amp_driver_t *amp_driver(amp_region_t *mem)
+amp_driver_t *amp_driver()
 {
-  amp_driver_t *o = amp_allocate(mem, NULL, sizeof(amp_region_t));
-  o->type = DRIVER;
-  o->selectables = amp_list(mem, 16);
-  o->region = mem;
+  amp_driver_t *o = malloc(sizeof(amp_driver_t));
+  o->selectables = amp_vlist(16);
   return o;
-}
-
-int amp_driver_inspect(amp_object_t *o, char **pos, char *limit)
-{
-  amp_driver_t *d = o;
-  int n;
-  if ((n = amp_format(pos, limit, "driver<%p>(selectables=", o))) return n;
-  if ((n = amp_inspect(d->selectables, pos, limit))) return n;
-  if ((n = amp_format(pos, limit, ")"))) return n;
-  return 0;
-}
-
-uintptr_t amp_driver_hash(amp_object_t *o)
-{
-  return (uintptr_t) o;
-}
-
-int amp_driver_compare(amp_object_t *a, amp_object_t *b)
-{
-  return b != a;
 }
 
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s)
 {
-  amp_list_add(d->selectables, s);
+  amp_vlist_add(d->selectables, amp_from_ref(s));
   s->driver = d;
 }
 
 void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s)
 {
-  amp_list_remove(d->selectables, s);
+  amp_vlist_remove(d->selectables, amp_from_ref(s));
   s->driver = NULL;
 }
 
@@ -102,16 +73,16 @@ void amp_driver_run(amp_driver_t *d)
 
   while (true)
   {
-    int n = amp_list_size(d->selectables);
+    int n = amp_vlist_size(d->selectables);
     if (n == 0) break;
     if (n > nfds) {
-      fds = amp_allocate(d->region, fds, n*sizeof(struct pollfd));
+      fds = realloc(fds, n*sizeof(struct pollfd));
       nfds = n;
     }
 
     for (i = 0; i < n; i++)
     {
-      amp_selectable_t *s = amp_list_get(d->selectables, i);
+      amp_selectable_t *s = amp_to_ref(amp_vlist_get(d->selectables, i));
       fds[i].fd = s->fd;
       fds[i].events = (s->status & AMP_SEL_RD ? POLLIN : 0) |
         (s->status & AMP_SEL_WR ? POLLOUT : 0);
@@ -126,7 +97,7 @@ void amp_driver_run(amp_driver_t *d)
 
     for (i = 0; i < n; i++)
     {
-      amp_selectable_t *s = amp_list_get(d->selectables, i);
+      amp_selectable_t *s = amp_to_ref(amp_vlist_get(d->selectables, i));
       if (fds[i].revents & POLLIN)
         s->readable(s);
       if (fds[i].revents & POLLOUT)
@@ -134,36 +105,17 @@ void amp_driver_run(amp_driver_t *d)
     }
   }
 
-  amp_allocate(d->region, fds, 0);
+  free(fds);
 }
 
-amp_type_t *SELECTABLE = &AMP_TYPE(selectable);
-
-amp_selectable_t *amp_selectable(amp_region_t *mem)
+amp_selectable_t *amp_selectable()
 {
-  amp_selectable_t *s = amp_allocate(mem, NULL, sizeof(amp_selectable_t));
+  amp_selectable_t *s = malloc(sizeof(amp_selectable_t));
   if (!s) return NULL;
-  s->type = SELECTABLE;
   s->status = 0;
   s->wakeup = 0;
-  s->region = mem;
   s->context = NULL;
   return s;
-}
-
-int amp_selectable_inspect(amp_object_t *o, char **pos, char *limit)
-{
-  return amp_format(pos, limit, "selectable<%p>", o);
-}
-
-uintptr_t amp_selectable_hash(amp_object_t *o)
-{
-  return (uintptr_t) o;
-}
-
-int amp_selectable_compare(amp_object_t *a, amp_object_t *b)
-{
-  return b != a;
 }
 
 #include <amp/engine.h>
@@ -189,8 +141,7 @@ void amp_selectable_engine_close(amp_selectable_t *sel)
   if (close(sel->fd) == -1)
     perror("close");
   amp_driver_remove(sel->driver, sel);
-  // XXX: need to pass in proper region here
-  amp_allocate(NULL, sel->context, 0);
+  free(sel->context);
 }
 
 struct amp_engine_ctx *amp_selectable_engine_read(amp_selectable_t *sel)
@@ -278,16 +229,15 @@ time_t amp_selectable_engine_tick(amp_selectable_t *sel, time_t now)
   return amp_engine_tick(engine, now);
 }
 
-amp_selectable_t *amp_selectable_engine(amp_region_t *mem, int sock,
-                                        amp_connection_t *conn)
+amp_selectable_t *amp_selectable_engine(int sock, amp_connection_t *conn)
 {
-  amp_selectable_t *sel = amp_selectable(mem);
+  amp_selectable_t *sel = amp_selectable();
   sel->fd = sock;
   sel->readable = &amp_engine_readable_hdr;
   sel->writable = &amp_engine_writable;
   sel->tick = &amp_selectable_engine_tick;
   sel->status = AMP_SEL_RD | AMP_SEL_WR;
-  struct amp_engine_ctx *ctx = amp_allocate(mem, NULL, sizeof(struct amp_engine_ctx));
+  struct amp_engine_ctx *ctx = malloc(sizeof(struct amp_engine_ctx));
   ctx->engine = amp_engine_create(conn);
   ctx->in_size = 0;
   memmove(ctx->output, "AMQP\x00\x01\x00\x00", 8);
@@ -334,8 +284,7 @@ void writable(amp_selectable_t *s)
   }
 }
 
-amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
-                                amp_connection_t *conn)
+amp_selectable_t *amp_connector(char *host, char *port, amp_connection_t *conn)
 {
   struct addrinfo *addr;
   int code = getaddrinfo(host, port, NULL, &addr);
@@ -351,7 +300,7 @@ amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
   if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1)
     return NULL;
 
-  amp_selectable_t *s = amp_selectable_engine(mem, sock, conn);
+  amp_selectable_t *s = amp_selectable_engine(sock, conn);
 
   printf("Connected to %s:%s\n", host, port);
   return s;
@@ -375,14 +324,14 @@ void do_accept(amp_selectable_t *s)
     } else {
       printf("accepted from %s:%s\n", host, serv);
       amp_connection_t *conn = amp_connection_create();
-      amp_selectable_t *a = amp_selectable_engine(s->region, sock, conn);
+      amp_selectable_t *a = amp_selectable_engine(sock, conn);
       a->status = AMP_SEL_RD | AMP_SEL_WR;
       amp_driver_add(s->driver, a);
     }
   }
 }
 
-amp_selectable_t *amp_acceptor(amp_region_t *mem, char *host, char *port)
+amp_selectable_t *amp_acceptor(char *host, char *port)
 {
   struct addrinfo *addr;
   int code = getaddrinfo(host, port, NULL, &addr);
@@ -405,7 +354,7 @@ amp_selectable_t *amp_acceptor(amp_region_t *mem, char *host, char *port)
   if (listen(sock, 50) == -1)
     return NULL;
 
-  amp_selectable_t *s = amp_selectable(mem);
+  amp_selectable_t *s = amp_selectable();
   s->fd = sock;
   s->readable = &do_accept;
   s->writable = NULL;

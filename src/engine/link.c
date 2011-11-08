@@ -19,9 +19,8 @@
  *
  */
 
-#include <amp/allocation.h>
 #include <amp/engine.h>
-#include <amp/type.h>
+#include <amp/value.h>
 
 struct amp_message_t {
   char *bytes;
@@ -29,12 +28,11 @@ struct amp_message_t {
 };
 
 struct amp_link_t {
-  AMP_HEAD;
   wchar_t *name;
   amp_session_t *session;
   int handle;
-  amp_object_t *source;
-  amp_object_t *target;
+  wchar_t *source;
+  wchar_t *target;
   bool sender;
   bool attached;
   bool attach_sent;
@@ -47,16 +45,11 @@ struct amp_link_t {
   int credit;
 };
 
-AMP_TYPE_DECL(LINK, link)
-
-amp_type_t *LINK = &AMP_TYPE(link);
-
 #define INITIAL_TRANSFER_COUNT (0)
 
 amp_link_t *amp_link_create(bool sender)
 {
-  amp_link_t *o = amp_allocate(AMP_HEAP, NULL, sizeof(amp_link_t));
-  o->type = LINK;
+  amp_link_t *o = malloc(sizeof(amp_link_t));
   o->name = L"test-name";
   o->session = NULL;
   o->handle = -1;
@@ -73,10 +66,6 @@ amp_link_t *amp_link_create(bool sender)
   o->credit = 0;
   return o;
 }
-
-AMP_DEFAULT_INSPECT(link)
-AMP_DEFAULT_HASH(link)
-AMP_DEFAULT_COMPARE(link)
 
 void amp_link_set_source(amp_link_t *link, wchar_t *source)
 {

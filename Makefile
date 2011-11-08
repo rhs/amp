@@ -1,23 +1,20 @@
 CFLAGS := -Wall -Werror -pedantic-errors -std=c99 -g -Iinclude
 PYTHON := python
 PYTHONPATH := ${realpath .}
+UTIL_SRC := src/util.c
 CODEC_SRC := src/codec/codec.c
 FRAMING_SRC := src/framing/framing.c
-TYPES_SRC := src/types/allocation.c  src/types/encoder.c  src/types/string.c \
-	src/types/binary.c      src/types/list.c     src/types/symbol.c \
-	src/types/box.c         src/types/map.c      src/types/type.c \
-	src/types/decoder.c     src/types/scalars.c
 VALUE_SRC := src/value.c
+UTIL_HDR := include/amp/util.h
 VALUE_HDR := include/amp/value.h
 ENGINE_SRC := src/engine/engine.c src/engine/connection.c src/engine/session.c \
 	src/engine/link.c
 DRIVER_SRC := src/driver.c
 
-SRCS := ${TYPES_SRC} ${VALUE_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} \
+SRCS := ${UTIL_SRC} ${VALUE_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} \
 	${ENGINE_SRC} ${DRIVER_SRC}
 OBJS := ${SRCS:.c=.o}
-HDRS := ${TYPES_SRC:src/types/%.c=include/amp/%.h} \
-	${VALUE_HDR} \
+HDRS := ${UTIL_HDR} ${VALUE_HDR} \
 	${FRAMING_SRC:src/framing/%.c=include/amp/%.h} \
 	${CODEC_SRC:src/codec/%.c=include/amp/%.h} \
         src/protocol.h \

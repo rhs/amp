@@ -22,23 +22,18 @@
  *
  */
 
-#include <amp/type.h>
 #include <amp/engine.h>
 #include <stdlib.h>
 
 typedef struct amp_driver_t amp_driver_t;
 typedef struct amp_selectable_st amp_selectable_t;
 
-AMP_TYPE_DECL(DRIVER, driver)
-AMP_TYPE_DECL(SELECTABLE, selectable)
-
 #define AMP_SEL_RD (0x0001)
 #define AMP_SEL_WR (0x0002)
 
-amp_driver_t *amp_driver(amp_region_t *mem);
-amp_selectable_t *amp_acceptor(amp_region_t *mem, char *host, char *port);
-amp_selectable_t *amp_connector(amp_region_t *mem, char *host, char *port,
-                                amp_connection_t *conn);
+amp_driver_t *amp_driver();
+amp_selectable_t *amp_acceptor(char *host, char *port);
+amp_selectable_t *amp_connector(char *host, char *port, amp_connection_t *conn);
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_run(amp_driver_t *d);

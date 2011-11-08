@@ -1,5 +1,5 @@
-#ifndef _AMP_STRING_H
-#define _AMP_STRING_H 1
+#ifndef _AMP_UTIL_H
+#define _AMP_UTIL_H 1
 
 /*
  *
@@ -22,17 +22,7 @@
  *
  */
 
-#include <amp/type.h>
+void amp_fatal(char *fmt, ...);
+void amp_vfatal(char *fmt, va_list ap);
 
-typedef struct {
-  AMP_HEAD;
-  size_t size;
-  wchar_t *wcs;
-} amp_string_t;
-
-AMP_ENCODABLE_DECL(STRING, string)
-
-amp_string_t *amp_string(amp_region_t *mem, const wchar_t *wcs);
-amp_string_t *amp_stringn(amp_region_t *mem, const wchar_t *wcs, size_t size);
-
-#endif /* string.h */
+#endif /* util.h */

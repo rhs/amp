@@ -73,16 +73,6 @@ amp_engine_t *amp_engine_create(amp_connection_t *connection)
   return o;
 }
 
-int amp_engine_inspect(amp_object_t *o, char **pos, char *limit)
-{
-  amp_engine_t *e = o;
-  int n;
-  if ((n = amp_format(pos, limit, "engine<%p>(connection=", o))) return n;
-  if ((n = amp_inspect(e->connection, pos, limit))) return n;
-  if ((n = amp_format(pos, limit, ")"))) return n;
-  return 0;
-}
-
 void amp_engine_dispatch(amp_engine_t *e, uint16_t channel, amp_tag_t *performative, const char* payload_bytes, size_t payload_size);
 
 ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
