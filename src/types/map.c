@@ -32,6 +32,11 @@ amp_map_t *amp_map(int capacity)
   return map;
 }
 
+void amp_free_map(amp_map_t *m)
+{
+  free(m);
+}
+
 amp_value_t amp_map_key(amp_map_t *map, int index)
 {
   return map->pairs[2*index];
@@ -40,6 +45,15 @@ amp_value_t amp_map_key(amp_map_t *map, int index)
 amp_value_t amp_map_value(amp_map_t *map, int index)
 {
   return map->pairs[2*index+1];
+}
+
+void amp_visit_map(amp_map_t *m, void (*visitor)(amp_value_t))
+{
+  for (int i = 0; i < m->size; i++)
+  {
+    amp_visit(amp_map_key(m, i), visitor);
+    amp_visit(amp_map_value(m, i), visitor);
+  }
 }
 
 int amp_format_map(char **pos, char *limit, amp_map_t *map)
@@ -200,50 +214,4 @@ size_t amp_encode_map(amp_map_t *m, char *out)
   }
   amp_write_map(&out, out + 1024, start, m->size);
   return out - old;
-}
-
-/* tags */
-
-amp_tag_t *amp_tag(amp_value_t descriptor, amp_value_t value)
-{
-  amp_tag_t *t = malloc(sizeof(amp_tag_t));
-  t->descriptor = descriptor;
-  t->value = value;
-  return t;
-}
-
-amp_value_t amp_tag_descriptor(amp_tag_t *t)
-{
-  return t->descriptor;
-}
-
-amp_value_t amp_tag_value(amp_tag_t *t)
-{
-  return t->value;
-}
-
-int amp_format_tag(char **pos, char *limit, amp_tag_t *tag)
-{
-  int e;
-
-  if ((e = amp_format_value(pos, limit, &tag->descriptor, 1))) return e;
-  if ((e = amp_fmt(pos, limit, "("))) return e;
-  if ((e = amp_format_value(pos, limit, &tag->value, 1))) return e;
-  if ((e = amp_fmt(pos, limit, ")"))) return e;
-
-  return 0;
-}
-
-size_t amp_encode_sizeof_tag(amp_tag_t *t)
-{
-  return 1 + amp_encode_sizeof(t->descriptor) + amp_encode_sizeof(t->value);
-}
-
-size_t amp_encode_tag(amp_tag_t *t, char *out)
-{
-  size_t size = 1;
-  amp_write_descriptor(&out, out + 1);
-  size += amp_encode(t->descriptor, out);
-  size += amp_encode(t->value, out + size - 1);
-  return size;
 }

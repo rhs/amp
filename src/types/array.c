@@ -88,6 +88,19 @@ amp_array_t *amp_array(enum TYPE type, int capacity)
   return l;
 }
 
+void amp_free_array(amp_array_t *a)
+{
+  free(a);
+}
+
+void amp_visit_array(amp_array_t *a, void (*visitor)(amp_value_t))
+{
+  for (int i = 0; i < a->size; i++)
+  {
+    amp_visit(a->values[i], visitor);
+  }
+}
+
 int amp_format_array(char **pos, char *limit, amp_array_t *array)
 {
   int e;

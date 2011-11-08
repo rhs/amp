@@ -161,6 +161,18 @@ size_t amp_encode_sizeof(amp_value_t v);
 size_t amp_encode(amp_value_t v, char *out);
 ssize_t amp_decode(amp_value_t *v, char *bytes, size_t n);
 
+void amp_free_value(amp_value_t v);
+void amp_free_array(amp_array_t *a);
+void amp_free_list(amp_list_t *l);
+void amp_free_map(amp_map_t *m);
+void amp_free_tag(amp_tag_t *t);
+
+void amp_visit(amp_value_t v, void (*visitor)(amp_value_t));
+void amp_visit_array(amp_array_t *v, void (*visitor)(amp_value_t));
+void amp_visit_list(amp_list_t *l, void (*visitor)(amp_value_t));
+void amp_visit_map(amp_map_t *m, void (*visitor)(amp_value_t));
+void amp_visit_tag(amp_tag_t *t, void (*visitor)(amp_value_t));
+
 /* scalars */
 #define amp_ulong(V) ((amp_value_t) {.type = ULONG, .u.as_ulong = (V)})
 #define amp_to_uint8(V) ((V).u.as_ubyte)

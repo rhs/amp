@@ -115,6 +115,7 @@ amp_selectable_t *amp_selectable()
   s->status = 0;
   s->wakeup = 0;
   s->context = NULL;
+  s->tick = NULL;
   return s;
 }
 

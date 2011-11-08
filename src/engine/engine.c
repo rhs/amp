@@ -92,6 +92,7 @@ ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
 
       amp_tag_t *perf = amp_to_tag(performative);
       amp_engine_dispatch(engine, frame.channel, perf, frame.payload + e, frame.size - e);
+      amp_visit(performative, amp_free_value);
 
       available -= n;
       read += n;

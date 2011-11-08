@@ -34,6 +34,19 @@ amp_list_t *amp_list(int capacity)
   return l;
 }
 
+void amp_free_list(amp_list_t *l)
+{
+  free(l);
+}
+
+void amp_visit_list(amp_list_t *l, void (*visitor)(amp_value_t))
+{
+  for (int i = 0; i < l->size; i++)
+  {
+    amp_visit(l->values[i], visitor);
+  }
+}
+
 int amp_list_size(amp_list_t *l)
 {
   return l->size;

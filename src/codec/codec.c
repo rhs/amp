@@ -164,7 +164,7 @@ static int amp_write_variable(char **pos, char *limit, size_t size, char *src,
 
   if (limit - *pos < size) return -1;
 
-  memcpy(*pos, src, size);
+  memmove(*pos, src, size);
   *pos += size;
   return 0;
 }

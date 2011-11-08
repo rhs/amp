@@ -672,3 +672,134 @@ size_t amp_encode(amp_value_t v, char *out)
     return 0;
   }
 }
+
+void amp_free_value(amp_value_t v)
+{
+  switch (v.type)
+  {
+  case EMPTY:
+  case BOOLEAN:
+  case BYTE:
+  case UBYTE:
+  case SHORT:
+  case USHORT:
+  case INT:
+  case UINT:
+  case CHAR:
+  case FLOAT:
+  case LONG:
+  case ULONG:
+  case DOUBLE:
+  case STRING:
+  case BINARY:
+  case REF:
+    break;
+  case ARRAY:
+    amp_free_array(v.u.as_array);
+    break;
+  case LIST:
+    amp_free_list(v.u.as_list);
+    break;
+  case MAP:
+    amp_free_map(v.u.as_map);
+    break;
+  case TAG:
+    amp_free_tag(v.u.as_tag);
+    break;
+  }
+}
+
+void amp_visit(amp_value_t v, void (*visitor)(amp_value_t))
+{
+  switch (v.type)
+  {
+  case EMPTY:
+  case BOOLEAN:
+  case BYTE:
+  case UBYTE:
+  case SHORT:
+  case USHORT:
+  case INT:
+  case UINT:
+  case CHAR:
+  case FLOAT:
+  case LONG:
+  case ULONG:
+  case DOUBLE:
+  case STRING:
+  case BINARY:
+  case REF:
+    break;
+  case ARRAY:
+    amp_visit_array(v.u.as_array, visitor);
+    break;
+  case LIST:
+    amp_visit_list(v.u.as_list, visitor);
+    break;
+  case MAP:
+    amp_visit_map(v.u.as_map, visitor);
+    break;
+  case TAG:
+    amp_visit_tag(v.u.as_tag, visitor);
+    break;
+  }
+
+  visitor(v);
+}
+
+/* tags */
+
+amp_tag_t *amp_tag(amp_value_t descriptor, amp_value_t value)
+{
+  amp_tag_t *t = malloc(sizeof(amp_tag_t));
+  t->descriptor = descriptor;
+  t->value = value;
+  return t;
+}
+
+void amp_free_tag(amp_tag_t *t)
+{
+  free(t);
+}
+
+void amp_visit_tag(amp_tag_t *t, void (*visitor)(amp_value_t))
+{
+  amp_visit(t->descriptor, visitor);
+  amp_visit(t->value, visitor);
+}
+
+amp_value_t amp_tag_descriptor(amp_tag_t *t)
+{
+  return t->descriptor;
+}
+
+amp_value_t amp_tag_value(amp_tag_t *t)
+{
+  return t->value;
+}
+
+int amp_format_tag(char **pos, char *limit, amp_tag_t *tag)
+{
+  int e;
+
+  if ((e = amp_format_value(pos, limit, &tag->descriptor, 1))) return e;
+  if ((e = amp_fmt(pos, limit, "("))) return e;
+  if ((e = amp_format_value(pos, limit, &tag->value, 1))) return e;
+  if ((e = amp_fmt(pos, limit, ")"))) return e;
+
+  return 0;
+}
+
+size_t amp_encode_sizeof_tag(amp_tag_t *t)
+{
+  return 1 + amp_encode_sizeof(t->descriptor) + amp_encode_sizeof(t->value);
+}
+
+size_t amp_encode_tag(amp_tag_t *t, char *out)
+{
+  size_t size = 1;
+  amp_write_descriptor(&out, out + 1);
+  size += amp_encode(t->descriptor, out);
+  size += amp_encode(t->value, out + size - 1);
+  return size;
+}
