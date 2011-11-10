@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     amp_connection_t *conn = amp_connection_create();
     amp_session_t *ssn = amp_session_create();
     bool send = !strcmp(argv[1], "send");
-    amp_link_t *lnk = amp_link_create(send);
+    amp_link_t *lnk = amp_link_create(send, L"test-link");
     if (send) {
       amp_link_set_target(lnk, L"queue");
     } else {
@@ -97,16 +97,16 @@ int main(int argc, char **argv)
     amp_session_begin(ssn);
     amp_link_attach(lnk);
     if (send) {
-      amp_link_send(lnk, "testing", 7);
-      amp_link_send(lnk, "one", 3);
-      amp_link_send(lnk, "two", 3);
-      amp_link_send(lnk, "three", 5);
+      amp_link_send(lnk, "a", "testing", 7);
+      amp_link_send(lnk, "b", "one", 3);
+      amp_link_send(lnk, "c", "two", 3);
+      amp_link_send(lnk, "d", "three", 5);
     } else {
       amp_link_flow(lnk, 10);
     }
-    sel = amp_connector("0.0.0.0", "5672", conn);
+    sel = amp_connector("0.0.0.0", "5672", conn, 0, 0);
   } else {
-    sel = amp_acceptor("0.0.0.0", "5672");
+    sel = amp_acceptor("0.0.0.0", "5672", 0, 0);
   }
   if (!sel) {
     perror("driver");

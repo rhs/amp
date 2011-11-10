@@ -40,7 +40,7 @@ for type in TYPES:
   hi, lo = [int(x, 0) for x in desc["@code"].split(":")]
   code = (hi << 32) + lo
   print "#define %s_CODE (%s)" % (name, code)
-  print "#define %s (%s)" % (name, idx)
+  print "#define %s_IDX (%s)" % (name, idx)
   idx += 1
 
 print

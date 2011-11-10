@@ -23,7 +23,7 @@ HDRS := ${UTIL_HDR} ${VALUE_HDR} \
 	include/amp/engine.h \
 	src/codec/encodings.h
 
-PROGRAMS := src/amp
+PROGRAMS := src/amp src/broker
 LIBRARY := src/librhsamp.so
 
 all: ${PROGRAMS} ${LIBRARY}

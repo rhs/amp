@@ -4,4 +4,5 @@
 src/codec/encodings.h
 src/protocol.h
 src/amp
+src/broker
 src/librhsamp.so

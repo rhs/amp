@@ -31,11 +31,27 @@ typedef struct amp_selectable_st amp_selectable_t;
 #define AMP_SEL_RD (0x0001)
 #define AMP_SEL_WR (0x0002)
 
+amp_selectable_t *amp_acceptor(char *host, char *port,
+                               void (*cb)(amp_connection_t*, void*), void* context);
+amp_selectable_t *amp_connector(char *host, char *port, amp_connection_t *conn,
+                                void (*cb)(amp_connection_t*, void*), void* context);
+
+amp_selectable_t *amp_selectable_create();
+void amp_selectable_set_context(amp_selectable_t *s, void*);
+void* amp_selectable_get_context(amp_selectable_t *s);
+void amp_selectable_set_readable(amp_selectable_t *s, void (*readable)(amp_selectable_t *));
+void amp_selectable_set_writable(amp_selectable_t *s, void (*writable)(amp_selectable_t *));
+void amp_selectable_set_tick(amp_selectable_t *s, time_t (*tick)(amp_selectable_t *, time_t));
+void amp_selectable_set_status(amp_selectable_t *s, int flags);
+int amp_selectable_connect(amp_selectable_t *s, const char *host, const char *port);
+int amp_selectable_recv(amp_selectable_t *s, void* buffer, size_t size);
+int amp_selectable_send(amp_selectable_t *s, void* buffer, size_t size);
+void amp_selectable_close(amp_selectable_t *sel);
+
 amp_driver_t *amp_driver();
-amp_selectable_t *amp_acceptor(char *host, char *port);
-amp_selectable_t *amp_connector(char *host, char *port, amp_connection_t *conn);
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_run(amp_driver_t *d);
+void amp_driver_stop(amp_driver_t *d);
 
 #endif /* driver.h */
