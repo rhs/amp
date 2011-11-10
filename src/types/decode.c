@@ -77,15 +77,13 @@ struct amp_decode_context_st {
 
 #define CTX_CAST(ctx) ((struct amp_decode_context_st *) (ctx))
 
-static amp_value_t *push_frame(void *ptr, amp_value_t *values, size_t limit)
+static void push_frame(void *ptr, amp_value_t *values, size_t limit)
 {
   struct amp_decode_context_st *ctx = CTX_CAST(ptr);
-  struct amp_decode_context_frame_st *old = &ctx->frames[ctx->depth - 1];
   struct amp_decode_context_frame_st *frm = &ctx->frames[ctx->depth++];
   frm->count = 0;
   frm->limit = limit;
   frm->values = values;
-  return &old->values[old->count];
 }
 
 static void pop_frame(void *ptr)
@@ -94,16 +92,28 @@ static void pop_frame(void *ptr)
   ctx->depth--;
 }
 
+static struct amp_decode_context_frame_st *frame(void *ptr)
+{
+  struct amp_decode_context_st *ctx = CTX_CAST(ptr);
+  return &ctx->frames[ctx->depth-1];
+}
+
 static amp_value_t *next_value(void *ptr)
+{
+  struct amp_decode_context_frame_st *frm = frame(ptr);
+  while (frm->limit && frm->count == frm->limit) {
+    pop_frame(ptr);
+    frm = frame(ptr);
+  }
+  amp_value_t *result = &frm->values[frm->count++];
+  return result;
+}
+
+static amp_value_t *curr_value(void *ptr)
 {
   struct amp_decode_context_st *ctx = CTX_CAST(ptr);
   struct amp_decode_context_frame_st *frm = &ctx->frames[ctx->depth-1];
-  amp_value_t *result = &frm->values[frm->count];
-  frm->count++;
-  if (frm->count == frm->limit) {
-    pop_frame(ptr);
-  }
-  return result;
+  return &frm->values[frm->count - 1];
 }
 
 void amp_decode_null(void *ctx) {
@@ -111,9 +121,9 @@ void amp_decode_null(void *ctx) {
   value->type = EMPTY;
 }
 void amp_decode_bool(void *ctx, bool v) {
-  //amp_value_t *value = VALUE(ctx);
-  //  value->type = BOOLEAN;
-  //  value->u.as_bool = v;
+  amp_value_t *value = next_value(ctx);
+  value->type = BOOLEAN;
+  value->u.as_boolean = v;
 }
 void amp_decode_ubyte(void *ctx, uint8_t v) {
   amp_value_t *value = next_value(ctx);
@@ -194,50 +204,62 @@ void amp_decode_symbol(void *ctx, size_t size, char *bytes) {
 }
 
 void amp_decode_start_array(void *ctx, size_t count, uint8_t code) {
-  amp_array_t *array = amp_array(amqp_code_to_type(code), count);
-  array->size = count;
-  amp_value_t *value = push_frame(ctx, array->values, count);
+  amp_value_t *value = next_value(ctx);
   value->type = ARRAY;
-  value->u.as_array = array;
+  value->u.as_array = amp_array(amqp_code_to_type(code), count);
+  push_frame(ctx, value->u.as_array->values, 0);
 }
-void amp_decode_stop_array(void *ctx, size_t count, uint8_t code) {}
+void amp_decode_stop_array(void *ctx, size_t count, uint8_t code) {
+  pop_frame(ctx);
+  amp_value_t *value = curr_value(ctx);
+  value->u.as_array->size = count;
+}
 
 void amp_decode_start_list(void *ctx, size_t count) {
-  amp_list_t *list = amp_list(count);
-  list->size = count;
-  amp_value_t *value = push_frame(ctx, list->values, count);
+  amp_value_t *value = next_value(ctx);
   value->type = LIST;
-  value->u.as_list = list;
+  value->u.as_list = amp_list(count);
+  push_frame(ctx, value->u.as_list->values, 0);
 }
 
-void amp_decode_stop_list(void *ctx, size_t count) {}
+void amp_decode_stop_list(void *ctx, size_t count) {
+  pop_frame(ctx);
+  amp_value_t *value = curr_value(ctx);
+  value->u.as_list->size = count;
+}
 
 void amp_decode_start_map(void *ctx, size_t count) {
-  amp_map_t *map = amp_map(count/2);
-  map->size = count/2;
-  amp_value_t *value = push_frame(ctx, map->pairs, count);
+  amp_value_t *value = next_value(ctx);
   value->type = MAP;
-  value->u.as_map = map;
+  value->u.as_map = amp_map(count/2);
+  push_frame(ctx, value->u.as_map->pairs, 0);
 }
 
-void amp_decode_stop_map(void *ctx, size_t count) {}
+void amp_decode_stop_map(void *ctx, size_t count) {
+  pop_frame(ctx);
+  amp_value_t *value = curr_value(ctx);
+  value->u.as_map->size = count/2;
+}
 
 void amp_decode_start_descriptor(void *ctx) {
-  amp_tag_t *tag = amp_tag(EMPTY_VALUE, EMPTY_VALUE);
-  amp_value_t *value = push_frame(ctx, &tag->value, 1);
+  amp_value_t *value = next_value(ctx);
   value->type = TAG;
-  value->u.as_tag = tag;
-  push_frame(ctx, &tag->descriptor, 1);
+  value->u.as_tag = amp_tag(EMPTY_VALUE, EMPTY_VALUE);
+  push_frame(ctx, &value->u.as_tag->descriptor, 0);
 }
 
-void amp_decode_stop_descriptor(void *ctx) {}
+void amp_decode_stop_descriptor(void *ctx) {
+  pop_frame(ctx);
+  amp_value_t *value = curr_value(ctx);
+  push_frame(ctx, &value->u.as_tag->value, 1);
+}
 
 amp_data_callbacks_t *amp_decoder = &AMP_DATA_CALLBACKS(amp_decode);
 
 ssize_t amp_decode(amp_value_t *v, char *bytes, size_t n)
 {
   struct amp_decode_context_st ctx = {.depth = 0};
-  push_frame(&ctx, v, 1);
+  push_frame(&ctx, v, 0);
   ssize_t read = amp_read_datum(bytes, n, amp_decoder, &ctx);
   return read;
 }

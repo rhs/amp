@@ -54,7 +54,10 @@ int amp_list_size(amp_list_t *l)
 
 amp_value_t amp_list_get(amp_list_t *l, int index)
 {
-  return l->values[index];
+  if (index < l->size)
+    return l->values[index];
+  else
+    return EMPTY_VALUE;
 }
 
 amp_value_t amp_list_set(amp_list_t *l, int index, amp_value_t v)

@@ -174,9 +174,14 @@ void amp_visit_map(amp_map_t *m, void (*visitor)(amp_value_t));
 void amp_visit_tag(amp_tag_t *t, void (*visitor)(amp_value_t));
 
 /* scalars */
+#define amp_boolean(V) ((amp_value_t) {.type = BOOLEAN, .u.as_boolean = (V)})
+#define amp_uint(V) ((amp_value_t) {.type = UINT, .u.as_uint = (V)})
 #define amp_ulong(V) ((amp_value_t) {.type = ULONG, .u.as_ulong = (V)})
 #define amp_to_uint8(V) ((V).u.as_ubyte)
-#define amp_boolean(V) ((amp_value_t) {.type = BOOLEAN, .u.as_boolean = (V)})
+#define amp_to_uint16(V) ((V).u.as_ushort)
+#define amp_to_bool(V) ((V).u.as_boolean)
+#define amp_to_string(V) ((V).u.as_string)
+#define amp_to_binary(V) ((V).u.as_binary)
 
 /* arrays */
 
@@ -192,6 +197,7 @@ amp_value_t amp_list_get(amp_list_t *l, int index);
 amp_value_t amp_list_set(amp_list_t *l, int index, amp_value_t v);
 int amp_list_add(amp_list_t *l, amp_value_t v);
 bool amp_list_remove(amp_list_t *l, amp_value_t v);
+amp_value_t amp_list_pop(amp_list_t *l, int index);
 int amp_list_extend(amp_list_t *l, const char *fmt, ...);
 int amp_list_fill(amp_list_t *l, amp_value_t v, int n);
 void amp_list_clear(amp_list_t *l);
