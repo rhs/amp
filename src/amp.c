@@ -53,12 +53,12 @@ int value(int argc, char **argv)
 
   printf("scanned %i values\n", count);
   for (int i = 0; i < count; i++) {
-    printf("value %.2i [%li]: ", i, amp_encode_sizeof(v[i])); print(v[i]);
+    printf("value %.2i [%zi]: ", i, amp_encode_sizeof(v[i])); print(v[i]);
   }
 
   amp_list_t *l = amp_list(1024);
   amp_list_extend(l, "SIi[iii]", L"One", 2, -3, 4, 5, 6);
-  printf("list [%li]: ", amp_encode_sizeof_list(l)); print(amp_from_list(l));
+  printf("list [%zi]: ", amp_encode_sizeof_list(l)); print(amp_from_list(l));
 
   for (int i = 0; i < count; i++)
   {
@@ -66,7 +66,7 @@ int value(int argc, char **argv)
     size_t size = amp_encode(v[i], buf);
     amp_value_t value;
     size_t read = amp_decode(&value, buf, size);
-    printf("read=%li: ", read); print(value);
+    printf("read=%zi: ", read); print(value);
   }
 
   return 0;

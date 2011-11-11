@@ -91,7 +91,7 @@ ssize_t amp_engine_input(amp_engine_t *engine, char *src, size_t available)
       amp_value_t performative;
       ssize_t e = amp_decode(&performative, frame.payload, frame.size);
       if (e < 0) {
-        fprintf(stderr, "Error decoding frame: %i\n", (int)e);
+        fprintf(stderr, "Error decoding frame: %zi\n", e);
         fprintf(stderr, "%s\n", amp_aformat(amp_value("z", frame.size, frame.payload)));
         return e;
       }
