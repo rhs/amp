@@ -179,6 +179,7 @@ void amp_visit_tag(amp_tag_t *t, void (*visitor)(amp_value_t));
 #define amp_ulong(V) ((amp_value_t) {.type = ULONG, .u.as_ulong = (V)})
 #define amp_to_uint8(V) ((V).u.as_ubyte)
 #define amp_to_uint16(V) ((V).u.as_ushort)
+#define amp_to_uint32(V) ((V).u.as_uint)
 #define amp_to_bool(V) ((V).u.as_boolean)
 #define amp_to_string(V) ((V).u.as_string)
 #define amp_to_binary(V) ((V).u.as_binary)

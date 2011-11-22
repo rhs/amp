@@ -20,6 +20,7 @@
  */
 
 #include <amp/engine.h>
+#include <amp/util.h>
 #include <amp/value.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -51,13 +52,13 @@ struct amp_link_t {
   size_t sent;
   size_t capacity;
   struct amp_message_t messages[MAX_CAPACITY];
-  sequence_t transfer_count;
+  sequence_t delivery_count;
   int requested_credit;
   int outstanding_credit;
   amp_list_t* unsettled_transfers;
 };
 
-#define INITIAL_TRANSFER_COUNT (0)
+#define INITIAL_DELIVERY_COUNT (0)
 
 wchar_t *amp_wcs_dup(const wchar_t *s)
 {
@@ -86,7 +87,7 @@ amp_link_t *amp_link_create(bool sender, const wchar_t *name)
   o->tail = 0;
   o->sent = 0;
   o->capacity = MAX_CAPACITY; //TODO: what is appropriate initial value here? 0? needs tied to credit
-  o->transfer_count = INITIAL_TRANSFER_COUNT;
+  o->delivery_count = INITIAL_DELIVERY_COUNT;
   o->requested_credit = 0;
   o->outstanding_credit = 0;
   return o;
@@ -151,9 +152,8 @@ int amp_link_available(amp_link_t *link)
 int amp_link_send(amp_link_t *link, const char *delivery_tag, const char *bytes,
                   size_t n)
 {
-  //TODO: check capacity
-  sequence_t id = amp_session_next(link->session);
-  amp_session_record(link->session, link, delivery_tag, id, bytes, n);
+  if (!(amp_session_record(link->session, link, delivery_tag, bytes, n)))
+    amp_fatal("send capacity exceeded?\n");
   return 0;
 }
 
@@ -176,7 +176,7 @@ void amp_sender_tick(amp_link_t *snd, amp_engine_t *eng)
 void amp_link_received(amp_link_t *link, const char *data, size_t size, const char* delivery_tag, sequence_t transfer_id)
 {
   link->outstanding_credit -= 1;
-  link->transfer_count++;
+  link->delivery_count++;
   //TODO: whats the ideal allocation strategy here? Are we supposed to
   //be using some 'region' etc? who frees these and when?
   char* copy = malloc(size);
@@ -186,21 +186,18 @@ void amp_link_received(amp_link_t *link, const char *data, size_t size, const ch
     link->messages[link->tail].size = size;
     ++(link->tail);
   }
-  amp_session_record(link->session, link, delivery_tag, transfer_id, copy, size);
+  amp_transfer_t *xfr = amp_session_record(link->session, link, delivery_tag,
+                                           copy, size);
+  if (!xfr) amp_fatal("recv capacity exceeded?\n");
+  if (xfr->id != transfer_id)
+    amp_fatal("sequencing error: %i, %i\n", xfr->id, transfer_id);
 }
 
 void amp_receiver_tick(amp_link_t *link, amp_engine_t *eng)
 {
   if (link->requested_credit > link->outstanding_credit) {
     int shortfall = link->requested_credit - link->outstanding_credit;
-    amp_engine_flow(eng, amp_session_channel(link->session),
-                    amp_session_in_next(link->session),
-                    amp_session_in_win(link->session),
-                    amp_session_out_next(link->session),
-                    amp_session_out_win(link->session),
-                    link->handle,
-                    link->transfer_count,
-                    shortfall);
+    amp_session_flow(link->session, eng, link, shortfall);
     link->outstanding_credit = link->requested_credit;
     link->requested_credit = 0;
   }
@@ -212,18 +209,11 @@ void amp_link_tick(amp_link_t *link, amp_engine_t *eng)
     if (!link->attach_sent) {
       amp_engine_attach(eng, amp_session_channel(link->session),
                         !link->sender, link->name, link->handle,
-                        link->transfer_count, link->source,
+                        link->delivery_count, link->source,
                         link->target);
       link->attach_sent = true;
       if (!link->sender) {
-        amp_engine_flow(eng, amp_session_channel(link->session),
-                        amp_session_in_next(link->session),
-                        amp_session_in_win(link->session),
-                        amp_session_out_next(link->session),
-                        amp_session_out_win(link->session),
-                        link->handle,
-                        link->transfer_count,
-                        link->requested_credit);
+        amp_session_flow(link->session, eng, link, link->requested_credit);
         link->outstanding_credit = link->requested_credit;
         link->requested_credit = 0;
       }
@@ -317,4 +307,8 @@ int amp_link_handle(amp_link_t* link)
 amp_session_t* amp_link_session(amp_link_t *link)
 {
   return link->session;
+}
+sequence_t amp_link_delivery_count(amp_link_t *link)
+{
+  return link->delivery_count;
 }

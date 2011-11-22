@@ -23,92 +23,6 @@
 #include <amp/value.h>
 #include <stdio.h>
 
-struct amp_transfer_t {
-  const char* delivery_tag;
-  sequence_t id;
-  amp_link_t* link;
-  const char *bytes;
-  size_t size;
-  enum OUTCOME local_outcome;
-  bool local_settled;
-  enum OUTCOME remote_outcome;
-  bool remote_settled;
-  int local_bytes_transferred;
-  int remote_bytes_transferred;
-  bool dirty;//true when there are local changes to propagate to peer
-  bool unread;//true when there are remote changes yet to be read
-  bool sent;
-};
-
-void amp_transfer_init(amp_transfer_t* o, const char* delivery_tag, sequence_t id, amp_link_t* link)
-{
-  o->delivery_tag = delivery_tag;
-  o->id = id;
-  o->link = link;
-  o->bytes = 0;
-  o->size = 0;
-  o->local_outcome = IN_DOUBT;
-  o->remote_outcome = IN_DOUBT;
-  o->local_settled = false;
-  o->remote_settled = false;
-  o->local_bytes_transferred = 0;
-  o->remote_bytes_transferred = 0;
-  o->dirty = false;
-  o->unread = false;
-  o->sent = false;
-}
-
-struct amp_transfer_buffer_t {
-    amp_transfer_t* transfers;
-    size_t max_size;
-    size_t head;
-    size_t tail;
-};
-typedef struct amp_transfer_buffer_t amp_transfer_buffer_t;
-
-void amp_transfer_buffer_init(amp_transfer_buffer_t* o, size_t size)
-{
-  o->transfers = malloc(sizeof(amp_transfer_t) * size);
-  o->max_size = size;
-  o->head = 0;
-  o->tail = 0;
-}
-
-size_t amp_transfer_buffer_size(amp_transfer_buffer_t* o)
-{
-  return o->head <= o->tail ? o->tail - o->head : o->max_size - (o->head - o->tail);
-}
-
-bool amp_transfer_buffer_empty(amp_transfer_buffer_t* o)
-{
-    return o->head == o->tail;
-}
-
-amp_transfer_t* amp_transfer_buffer_get(amp_transfer_buffer_t* o, size_t index)
-{
-    return o->transfers + ((o->head + index) % o->max_size);
-}
-
-amp_transfer_t* amp_transfer_buffer_head(amp_transfer_buffer_t* o)
-{
-  return o->transfers + o->head;
-}
-
-amp_transfer_t* amp_transfer_buffer_tail(amp_transfer_buffer_t* o)
-{
-  return o->transfers + (o->tail > 0 ? o->tail - 1 : o->max_size - 1);
-}
-
-void amp_transfer_buffer_push(amp_transfer_buffer_t* o)
-{
-  if (++(o->tail) >= o->max_size) o->tail -= o->max_size;
-}
-
-void amp_transfer_buffer_pop(amp_transfer_buffer_t* o)
-{
-  if (++(o->head) >= o->max_size) o->head -= o->max_size;
-}
-
 struct amp_session_t {
   amp_connection_t *connection;
   int channel;
@@ -119,12 +33,8 @@ struct amp_session_t {
   bool begin_rcvd;
   bool end_sent;
   bool end_rcvd;
-  sequence_t next_incoming_id;
-  uint32_t incoming_window;
-  sequence_t next_outgoing_id;
-  uint32_t outgoing_window;
-  amp_transfer_buffer_t unsettled_in;
-  amp_transfer_buffer_t unsettled_out;
+  amp_transfer_buffer_t incoming;
+  amp_transfer_buffer_t outgoing;
 };
 
 amp_session_t *amp_session_create()
@@ -139,11 +49,8 @@ amp_session_t *amp_session_create()
   o->begin_rcvd = false;
   o->end_sent = false;
   o->end_rcvd = false;
-  o->incoming_window = 65536;
-  o->next_outgoing_id = 0;
-  o->outgoing_window = 65536;
-  amp_transfer_buffer_init(&o->unsettled_in, 1024);
-  amp_transfer_buffer_init(&o->unsettled_out, 1024);
+  amp_transfer_buffer_init(&o->incoming, 0, 1024);
+  amp_transfer_buffer_init(&o->outgoing, 0, 1024);
   return o;
 }
 
@@ -169,29 +76,17 @@ int amp_session_channel(amp_session_t *session)
   return session->channel;
 }
 
-sequence_t amp_session_next(amp_session_t *session)
+int amp_session_flow(amp_session_t *session, amp_engine_t *eng, amp_link_t *link, int credit)
 {
-  return session->next_outgoing_id++;
-}
-
-sequence_t amp_session_in_next(amp_session_t *session)
-{
-  return session->next_incoming_id;
-}
-
-int amp_session_in_win(amp_session_t *session)
-{
-  return session->incoming_window;
-}
-
-sequence_t amp_session_out_next(amp_session_t *session)
-{
-  return session->next_outgoing_id;
-}
-
-int amp_session_out_win(amp_session_t *session)
-{
-  return session->outgoing_window;
+  int result = amp_engine_flow(eng, session->channel,
+                               session->incoming.next,
+                               amp_transfer_buffer_available(&session->incoming),
+                               session->outgoing.next,
+                               amp_transfer_buffer_available(&session->outgoing),
+                               amp_link_handle(link),
+                               amp_link_delivery_count(link),
+                               credit);
+  return result;
 }
 
 int amp_session_links(amp_session_t *session)
@@ -223,10 +118,9 @@ void amp_session_add(amp_session_t *ssn, amp_link_t *link)
 void amp_session_do_transfer(amp_session_t* session, amp_engine_t* eng)
 {
   //TODO: avoid recomputing size?
-  int size = amp_transfer_buffer_size(&session->unsettled_out);
+  int size = amp_transfer_buffer_size(&session->outgoing);
   for (int i = 0; i < size; i++) {
-  //  for (int i = size-1; i >= 0; --i) {
-    amp_transfer_t* transfer = amp_transfer_buffer_get(&session->unsettled_out, i);
+    amp_transfer_t* transfer = amp_transfer_buffer_get(&session->outgoing, i);
     if (!transfer->sent) {
       amp_engine_transfer(eng, amp_session_channel(session), amp_link_handle(transfer->link),
                           transfer->delivery_tag, transfer->id, transfer->bytes,
@@ -272,8 +166,8 @@ void amp_session_tick(amp_session_t *ssn, amp_engine_t *eng)
   if (ssn->begun) {
     if (!ssn->begin_sent) {
       amp_engine_begin(eng, ssn->channel, ssn->remote_channel,
-                       ssn->next_outgoing_id, ssn->incoming_window,
-                       ssn->outgoing_window);
+                       ssn->outgoing.next, amp_transfer_buffer_available(&ssn->incoming),
+                       amp_transfer_buffer_available(&ssn->outgoing));
       ssn->begin_sent = true;
     }
   }
@@ -283,8 +177,8 @@ void amp_session_tick(amp_session_t *ssn, amp_engine_t *eng)
     amp_link_tick(lnk, eng);
   }
   amp_session_do_transfer(ssn, eng);
-  amp_session_process_unsettled(ssn, eng, &ssn->unsettled_in);
-  amp_session_process_unsettled(ssn, eng, &ssn->unsettled_out);
+  amp_session_process_unsettled(ssn, eng, &ssn->incoming);
+  amp_session_process_unsettled(ssn, eng, &ssn->outgoing);
 
   if (!ssn->begun) {
     if (ssn->begin_sent && !ssn->end_sent) {
@@ -309,9 +203,10 @@ bool amp_session_ended_by_peer(amp_session_t *session)
   return session->end_rcvd;
 }
 
-void amp_session_begin_received(amp_session_t* session)
+void amp_session_begin_received(amp_session_t* session, sequence_t initial_transfer_count)
 {
   session->begin_rcvd = true;
+  session->incoming.next = initial_transfer_count;
   //need to set 'remote channel'
 }
 
@@ -342,7 +237,7 @@ amp_endpoint_t amp_session_next_endpoint(amp_session_t* session)
 
 const amp_transfer_t* amp_session_unsettled(amp_session_t* session, amp_link_t* link, const char* delivery_tag)
 {
-  amp_transfer_buffer_t* buffer = amp_link_sender(link) ? &session->unsettled_out : &session->unsettled_in;
+  amp_transfer_buffer_t* buffer = amp_link_sender(link) ? &session->outgoing : &session->incoming;
   int size = amp_transfer_buffer_size(buffer);
   for (int i = 0; i < size; ++i) {
     amp_transfer_t* transfer = amp_transfer_buffer_get(buffer, i);
@@ -353,7 +248,7 @@ const amp_transfer_t* amp_session_unsettled(amp_session_t* session, amp_link_t* 
 
 bool amp_session_update_unsettled(amp_session_t* session, amp_link_t* link, const char* delivery_tag, outcome_t outcome, bool settled)
 {
-  amp_transfer_buffer_t* buffer = &session->unsettled_in;
+  amp_transfer_buffer_t* buffer = &session->incoming;
   int size = amp_transfer_buffer_size(buffer);
   for (int i = 0; i < size; ++i) {
     amp_transfer_t* transfer = amp_transfer_buffer_get(buffer, i);
@@ -369,7 +264,7 @@ bool amp_session_update_unsettled(amp_session_t* session, amp_link_t* link, cons
 
 void amp_session_disposition_received(amp_session_t* session, bool role, sequence_t first, sequence_t last, outcome_t outcome, bool settled)
 {
-  amp_transfer_buffer_t* buffer = role ? &session->unsettled_out : &session->unsettled_in;
+  amp_transfer_buffer_t* buffer = role ? &session->outgoing : &session->incoming;
   int size = amp_transfer_buffer_size(buffer);
   //TODO: could improve algorithm here to utilise sequence
   for (int i = 0; i < size; ++i) {
@@ -383,39 +278,15 @@ void amp_session_disposition_received(amp_session_t* session, bool role, sequenc
   }
 }
 
-void amp_session_record(amp_session_t* session, amp_link_t* link, const char* delivery_tag, sequence_t transfer_id,
-                        const char* bytes, size_t size)
+amp_transfer_t *amp_session_record(amp_session_t* session, amp_link_t* link,
+                                   const char* delivery_tag,
+                                   const char* bytes, size_t size)
 {
-  amp_transfer_buffer_t* buffer = amp_link_sender(link) ? &session->unsettled_out : &session->unsettled_in;
-  //TODO: check for overflow
-  amp_transfer_buffer_push(buffer);
-  amp_transfer_t* transfer = amp_transfer_buffer_tail(buffer);
-  amp_transfer_init(transfer, delivery_tag, transfer_id, link);
-  transfer->bytes = bytes;
-  transfer->size = size;
-}
-
-const char *amp_transfer_delivery_tag(const amp_transfer_t* transfer)
-{
-  return transfer->delivery_tag;
-}
-bool amp_transfer_is_settled_locally(const amp_transfer_t* transfer)
-{
-  return transfer->local_settled;
-}
-bool amp_transfer_is_settled_remotely(const amp_transfer_t* transfer)
-{
-  return transfer->remote_settled;
-}
-outcome_t amp_transfer_local_outcome(const amp_transfer_t* transfer)
-{
-  return transfer->local_outcome;
-}
-outcome_t amp_transfer_remote_outcome(const amp_transfer_t* transfer)
-{
-  return transfer->remote_outcome;
-}
-void amp_transfer_clear_unread(amp_transfer_t* transfer)
-{
-  transfer->unread = false;
+  amp_transfer_buffer_t* buffer = amp_link_sender(link) ? &session->outgoing : &session->incoming;
+  amp_transfer_t* transfer = amp_transfer_buffer_push(buffer, delivery_tag, link);
+  if (transfer) {
+    transfer->bytes = bytes;
+    transfer->size = size;
+  }
+  return transfer;
 }

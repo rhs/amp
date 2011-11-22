@@ -205,16 +205,17 @@ void amp_engine_do_begin(amp_engine_t *e, uint16_t channel, amp_list_t *args)
 {
   printf("BEGIN: %s\n", amp_aformat(amp_from_list(args)));
   amp_value_t remote_channel = amp_list_get(args, BEGIN_REMOTE_CHANNEL);
+  sequence_t itc = amp_to_uint32(amp_list_get(args, BEGIN_NEXT_OUTGOING_ID));
   if (remote_channel.type == USHORT) {
     //this is a response to a begin we have sent ourselves
     uint16_t rc = amp_to_uint16(remote_channel);
     amp_session_t* session = amp_connection_get_session(e->connection, rc);
-    amp_session_begin_received(session);
+    amp_session_begin_received(session, itc);
   } else {
     //this is an indication of a new session initiated by peer
     amp_session_t* session = amp_session_create();
     amp_session_set_remote_channel(session, channel);
-    amp_session_begin_received(session);
+    amp_session_begin_received(session, itc);
     amp_connection_add(e->connection, session);
   }
 }

@@ -9,7 +9,7 @@ VALUE_SRC := src/types/value.c src/types/array.c src/types/list.c \
 UTIL_HDR := include/amp/util.h
 VALUE_HDR := include/amp/value.h
 ENGINE_SRC := src/engine/engine.c src/engine/connection.c src/engine/session.c \
-	src/engine/link.c
+	src/engine/link.c src/engine/transfer.c
 DRIVER_SRC := src/driver.c
 
 SRCS := ${UTIL_SRC} ${VALUE_SRC} ${FRAMING_SRC} ${CODEC_SRC} ${PROTOCOL_SRC} \

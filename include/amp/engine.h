@@ -147,20 +147,15 @@ amp_link_t *amp_session_get_link(amp_session_t *session, int index);
 int amp_session_channel(amp_session_t *session);
 void amp_session_bind(amp_session_t *ssn, amp_connection_t *conn, int channel);
 void amp_session_tick(amp_session_t *ssn, amp_engine_t *eng);
-sequence_t amp_session_next(amp_session_t *session);
-sequence_t amp_session_in_next(amp_session_t *session);
-int amp_session_in_win(amp_session_t *session);
-sequence_t amp_session_out_next(amp_session_t *session);
-int amp_session_out_win(amp_session_t *session);
-void amp_session_begin_received(amp_session_t* session);
+int amp_session_flow(amp_session_t *ssn, amp_engine_t *eng, amp_link_t *link, int credit);
+void amp_session_begin_received(amp_session_t* session, sequence_t initial_transfer_count);
 void amp_session_end_received(amp_session_t* session);
 amp_endpoint_t amp_session_next_endpoint(amp_session_t* session);
 void amp_session_set_remote_channel(amp_session_t* session, int remote_channel);
 
-amp_transfer_t *amp_transfer_create(const char* delivery_tag, sequence_t id, amp_link_t* link);
-void amp_session_record(amp_session_t* session, amp_link_t* link,
-                        const char* delivery_tag, sequence_t transfer_id,
-                        const char* bytes, size_t size);
+amp_transfer_t *amp_session_record(amp_session_t* session, amp_link_t* link,
+                                   const char* delivery_tag,
+                                   const char* bytes, size_t size);
 const amp_transfer_t* amp_session_unsettled(amp_session_t* session, amp_link_t* link, const char* delivery_tag);
 bool amp_session_update_unsettled(amp_session_t* session, amp_link_t* link, const char* delivery_tag, outcome_t outcome, bool settled);
 void amp_session_disposition_received(amp_session_t* session, bool role, sequence_t first, sequence_t last, outcome_t outcome, bool settled);
@@ -214,5 +209,43 @@ void amp_link_attach_received(amp_link_t *link);
 void amp_link_detach_received(amp_link_t *link);
 bool amp_link_has_pending_work(amp_link_t* link);
 int amp_link_handle(amp_link_t* link);
+sequence_t amp_link_delivery_count(amp_link_t *link);
+
+struct amp_transfer_t {
+  const char* delivery_tag;
+  sequence_t id;
+  amp_link_t* link;
+  const char *bytes;
+  size_t size;
+  enum OUTCOME local_outcome;
+  bool local_settled;
+  enum OUTCOME remote_outcome;
+  bool remote_settled;
+  int local_bytes_transferred;
+  int remote_bytes_transferred;
+  bool dirty;//true when there are local changes to propagate to peer
+  bool unread;//true when there are remote changes yet to be read
+  bool sent;
+};
+
+struct amp_transfer_buffer_t {
+  amp_transfer_t* transfers;
+  sequence_t next;
+  size_t capacity;
+  size_t head;
+  size_t size;
+};
+typedef struct amp_transfer_buffer_t amp_transfer_buffer_t;
+
+void amp_transfer_buffer_init(amp_transfer_buffer_t* o, sequence_t next, size_t size);
+size_t amp_transfer_buffer_size(amp_transfer_buffer_t* o);
+size_t amp_transfer_buffer_available(amp_transfer_buffer_t *o);
+amp_transfer_t *amp_transfer_buffer_get(amp_transfer_buffer_t* o, size_t index);
+bool amp_transfer_buffer_empty(amp_transfer_buffer_t* o);
+amp_transfer_t *amp_transfer_buffer_head(amp_transfer_buffer_t* o);
+bool amp_transfer_buffer_pop(amp_transfer_buffer_t* o);
+amp_transfer_t *amp_transfer_buffer_push(amp_transfer_buffer_t* o,
+                                    const char* delivery_tag, amp_link_t* link);
+amp_transfer_t* amp_transfer_buffer_tail(amp_transfer_buffer_t* o);
 
 #endif /* engine.h */
