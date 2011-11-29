@@ -93,7 +93,7 @@ amp_connection_t *amp_engine_connection(amp_engine_t *eng);
 /* Top Half */
 
 /* Connections */
-amp_connection_t *amp_connection_create();
+amp_connection_t *amp_connection_create(void);
 int amp_connection_destroy(amp_connection_t *conn);
 amp_error_t *amp_connection_error(amp_connection_t *connection);
 
@@ -129,7 +129,7 @@ void amp_connection_close_received(amp_connection_t *conn);
 void amp_connection_add_pending_link(amp_connection_t *conn, amp_link_t* link);
 
 /* Sessions */
-amp_session_t *amp_session_create();
+amp_session_t *amp_session_create(void);
 int amp_session_destroy(amp_session_t *session);
 amp_error_t *amp_session_error(amp_session_t *session);
 

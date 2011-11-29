@@ -36,7 +36,7 @@ amp_selectable_t *amp_acceptor(char *host, char *port,
 amp_selectable_t *amp_connector(char *host, char *port, amp_connection_t *conn,
                                 void (*cb)(amp_connection_t*, void*), void* context);
 
-amp_selectable_t *amp_selectable_create();
+amp_selectable_t *amp_selectable_create(void);
 void amp_selectable_set_context(amp_selectable_t *s, void*);
 void* amp_selectable_get_context(amp_selectable_t *s);
 void amp_selectable_set_readable(amp_selectable_t *s, void (*readable)(amp_selectable_t *));
@@ -48,7 +48,7 @@ int amp_selectable_recv(amp_selectable_t *s, void* buffer, size_t size);
 int amp_selectable_send(amp_selectable_t *s, void* buffer, size_t size);
 void amp_selectable_close(amp_selectable_t *sel);
 
-amp_driver_t *amp_driver();
+amp_driver_t *amp_driver(void);
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_run(amp_driver_t *d);
