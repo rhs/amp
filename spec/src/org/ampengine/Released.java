@@ -24,6 +24,8 @@ package org.ampengine;
 /**
  * Released
  *
+ * @hidden
+ *
  */
 
 public interface Released extends Outcome

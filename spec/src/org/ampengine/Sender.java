@@ -33,13 +33,27 @@ public interface Sender extends Link
 {
 
     /**
-     * indicates pending transfers
+     * indicates pending deliveries
+     *
+     * @param credits the number of pending deliveries
+     * @todo is this absolute or cumulative?
      */
     public void offer(int credits);
 
     /**
-     * @return a newly created outgoing Transfer
+     * Sends message data.
+     *
+     * @param delivery the delivery
+     * @param bytes the message data
+     * @param more a flag indicating if there is more data for this delivery
      */
-    public Transfer send(byte[] tag, byte[] bytes);
+    public void send(Delivery delivery, byte[] bytes, boolean more);
+
+    /**
+     * Abort a delivery.
+     *
+     * @param delivery the delivery to abort
+     */
+    public void abort(Delivery delivery);
 
 }

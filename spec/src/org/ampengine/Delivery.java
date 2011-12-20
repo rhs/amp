@@ -24,6 +24,9 @@ package org.ampengine;
 /**
  * Delivery
  *
+ * @opt operations
+ * @opt types
+ *
  * @assoc - - 1 DeliveryState
  *
  */

@@ -24,6 +24,8 @@ package org.ampengine;
 /**
  * Received
  *
+ * @hidden
+ *
  */
 
 public interface Received extends DeliveryState

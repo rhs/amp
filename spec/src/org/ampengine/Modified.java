@@ -24,6 +24,8 @@ package org.ampengine;
 /**
  * Modified
  *
+ * @hidden
+ *
  */
 
 public interface Modified extends Outcome

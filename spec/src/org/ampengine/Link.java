@@ -20,6 +20,8 @@
  */
 package org.ampengine;
 
+import java.util.Iterator;
+
 
 /**
  * Link
@@ -27,7 +29,7 @@ package org.ampengine;
  * @opt operations
  * @opt types
  *
- * @assoc 1 - n Transfer
+ * @assoc 1 - n Delivery
  *
  */
 
@@ -43,5 +45,18 @@ public interface Link extends Endpoint
      * transition local state to CLOSED
      */
     public void detach();
+
+    /**
+     * @param tag a tag for the delivery
+     * @param state the initial state of the delivery
+     *
+     * @return a Delivery object
+     */
+    public Delivery delivery(byte[] tag, DeliveryState state);
+
+    /**
+     * @return the unsettled deliveries for this link
+     */
+    public Iterator<Delivery> unsettled();
 
 }

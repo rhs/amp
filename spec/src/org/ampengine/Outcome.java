@@ -24,6 +24,8 @@ package org.ampengine;
 /**
  * Outcome
  *
+ * @hidden
+ *
  */
 
 public interface Outcome extends DeliveryState

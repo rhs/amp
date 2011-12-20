@@ -38,8 +38,18 @@ public interface Receiver extends Link
     public void flow(int credits);
 
     /**
-     * @return the next incoming Transfer
+     * @return the next incoming delivery or null if there is none
      */
-    public Transfer next();
+    public Delivery next();
+
+    /**
+     * Receive message data for the specified delivery.
+     *
+     * @param delivery an incoming delivery
+     * @param bytes the destination array where the message data is written
+     *
+     * @return true iff there is more message data for this delivery
+     */
+    public boolean recv(Delivery delivery, byte[] bytes);
 
 }

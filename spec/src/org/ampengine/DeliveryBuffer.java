@@ -22,20 +22,23 @@ package org.ampengine;
 
 
 /**
- * Transfer
+ * DeliveryBuffer
  *
  * @opt operations
+ * @opt attributes
  * @opt types
  *
- * @assoc n - 1 Delivery
+ * @composed 1 - "0..n" Delivery
  *
  */
 
-public interface Transfer
+public interface DeliveryBuffer
 {
 
-    public Delivery getDelivery();
+    int next = 0;
 
-    public byte[] getBytes();
+    public int getCapacity();
+
+    public int getSize();
 
 }

@@ -30,8 +30,8 @@ import java.util.Iterator;
  * @opt types
  *
  * @composed 1 - "0..n" Link
- * @composed 1 incoming 1 TransferBuffer
- * @composed 1 outgoing 1 TransferBuffer
+ * @composed 1 incoming 1 DeliveryBuffer
+ * @composed 1 outgoing 1 DeliveryBuffer
  *
  */
 

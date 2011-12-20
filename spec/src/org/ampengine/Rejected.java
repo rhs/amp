@@ -24,6 +24,8 @@ package org.ampengine;
 /**
  * Rejected
  *
+ * @hidden
+ *
  */
 
 public interface Rejected extends Outcome
