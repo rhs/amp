@@ -27,7 +27,8 @@ package org.ampengine;
  * @opt operations
  * @opt types
  *
- * @assoc - - 1 DeliveryState
+ * @assoc - local 0..1 DeliveryState
+ * @assoc - remote 0..1 DeliveryState
  *
  */
 
@@ -39,7 +40,11 @@ public interface Delivery
 
     public Link getLink();
 
-    public DeliveryState getState();
+    public DeliveryState getLocalState();
+
+    public DeliveryState getRemoteState();
+
+    public boolean remoteSettled();
 
     public int getMessageFormat();
 
