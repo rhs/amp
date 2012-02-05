@@ -49,9 +49,14 @@ public interface Session extends Endpoint
     public void end();
 
     /**
-     * @return a newly created link
+     * @return a newly created outgoing link
      */
-    public Link link();
+    public Sender sender();
+
+    /**
+     * @return a newly created incoming link
+     */
+    public Receiver receiver();
 
     /**
      * @see Connection#endpoints(Endpoint.State, Endpoint.State)
