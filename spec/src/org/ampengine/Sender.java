@@ -41,19 +41,16 @@ public interface Sender extends Link
     public void offer(int credits);
 
     /**
-     * Sends message data.
+     * Sends message data for the current delivery.
      *
-     * @param delivery the delivery
      * @param bytes the message data
      * @param more a flag indicating if there is more data for this delivery
      */
-    public void send(Delivery delivery, byte[] bytes, boolean more);
+    public void send(byte[] bytes, boolean more);
 
     /**
-     * Abort a delivery.
-     *
-     * @param delivery the delivery to abort
+     * Abort the current delivery.
      */
-    public void abort(Delivery delivery);
+    public void abort();
 
 }

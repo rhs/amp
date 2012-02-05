@@ -43,13 +43,15 @@ public interface Receiver extends Link
     public Delivery next();
 
     /**
-     * Receive message data for the specified delivery.
+     * Receive message data for the current delivery.
      *
-     * @param delivery an incoming delivery
      * @param bytes the destination array where the message data is written
+     * @param offset the index to begin writing into the array
+     * @param size the maximum number of bytes to write
      *
-     * @return true iff there is more message data for this delivery
+     * @return the number of bytes written or -1 if there is no more
+     *         message data for the current delivery
      */
-    public boolean recv(Delivery delivery, byte[] bytes);
+    public int recv(byte[] bytes, int offset, int size);
 
 }
