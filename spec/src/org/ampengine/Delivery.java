@@ -35,8 +35,7 @@ package org.ampengine;
 public interface Delivery
 {
 
-    int id = 0;
-    byte[] tag = new byte[0];
+    public byte[] getTag();
 
     public Link getLink();
 
