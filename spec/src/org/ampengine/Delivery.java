@@ -55,9 +55,8 @@ public interface Delivery
     public void disposition(DeliveryState state);
 
     /**
-     * @param state if specified the delivery state will be updated
-     *              prior to settling
+     * settle the delivery
      */
-    public void settle(DeliveryState state);
+    public void settle();
 
 }
