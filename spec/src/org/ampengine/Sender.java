@@ -44,9 +44,8 @@ public interface Sender extends Link
      * Sends message data for the current delivery.
      *
      * @param bytes the message data
-     * @param more a flag indicating if there is more data for this delivery
      */
-    public void send(byte[] bytes, boolean more);
+    public void send(byte[] bytes);
 
     /**
      * Abort the current delivery.

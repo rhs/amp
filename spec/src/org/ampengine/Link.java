@@ -58,4 +58,11 @@ public interface Link extends Endpoint
      */
     public Iterator<Delivery> unsettled();
 
+    /**
+     * Advances the current delivery to the next delivery on the link.
+     *
+     * @return the next delivery or null if there is none
+     */
+    public Delivery next();
+
 }
