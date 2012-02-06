@@ -48,11 +48,10 @@ public interface Link extends Endpoint
 
     /**
      * @param tag a tag for the delivery
-     * @param state the initial state of the delivery
      *
      * @return a Delivery object
      */
-    public Delivery delivery(byte[] tag, DeliveryState state);
+    public Delivery delivery(byte[] tag);
 
     /**
      * @return the unsettled deliveries for this link
