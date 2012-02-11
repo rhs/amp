@@ -31,6 +31,9 @@ import java.util.Iterator;
  *
  * @assoc 1 - n Delivery
  *
+ * @todo make links able to exist independently from
+ *       sessions/connections and allow to migrate
+ *
  */
 
 public interface Link extends Endpoint

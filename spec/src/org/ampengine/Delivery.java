@@ -30,6 +30,9 @@ package org.ampengine;
  * @assoc - local 0..1 DeliveryState
  * @assoc - remote 0..1 DeliveryState
  *
+ * @todo deliveries need to track important link state (source and
+ *       targets) at the point that they were created
+ *
  */
 
 public interface Delivery
