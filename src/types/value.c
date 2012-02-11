@@ -406,6 +406,20 @@ amp_value_t amp_from_ref(void *r)
   return (amp_value_t) {.type = REF, .u.as_ref = r};
 }
 
+amp_value_t amp_from_binary(amp_binary_t b)
+{
+  return (amp_value_t) {.type = BINARY, .u.as_binary = b};
+}
+
+amp_binary_t amp_binary_dup(amp_binary_t binary)
+{
+  amp_binary_t dup;
+  dup.bytes = malloc(binary.size);
+  memcpy(dup.bytes, binary.bytes, binary.size);
+  dup.size = binary.size;
+  return dup;
+}
+
 int amp_format_binary(char **pos, char *limit, amp_binary_t binary)
 {
   for (int i = 0; i < binary.size; i++)

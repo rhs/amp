@@ -175,7 +175,6 @@ void amp_selectable_set_tick(amp_selectable_t *s, time_t (*tick)(amp_selectable_
     s->tick = tick;
 }
 
-#include <amp/engine.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -185,7 +184,8 @@ void amp_selectable_set_tick(amp_selectable_t *s, time_t (*tick)(amp_selectable_
 #define IO_BUF_SIZE (4*1024)
 
 struct amp_engine_ctx {
-  amp_engine_t *engine;
+  amp_connection_t *connection;
+  amp_transport_t *transport;
   int in_size;
   int out_size;
   char input[IO_BUF_SIZE];
@@ -226,8 +226,8 @@ void amp_selectable_engine_consume(struct amp_engine_ctx *ctx, int n)
 
 void amp_engine_readable_input(struct amp_engine_ctx *ctx)
 {
-  amp_engine_t *engine = ctx->engine;
-  int n = amp_engine_input(engine, ctx->input, ctx->in_size);
+  amp_transport_t *transport = ctx->transport;
+  int n = amp_input(transport, ctx->input, ctx->in_size);
   amp_selectable_engine_consume(ctx, n);
 }
 
@@ -259,8 +259,8 @@ void amp_engine_readable_hdr(amp_selectable_t *sel)
 void amp_engine_writable(amp_selectable_t *sel)
 {
   struct amp_engine_ctx *ctx = sel->context;
-  amp_engine_t *engine = ctx->engine;
-  ssize_t n = amp_engine_output(engine, ctx->output + ctx->out_size, IO_BUF_SIZE - ctx->out_size);
+  amp_transport_t *transport = ctx->transport;
+  ssize_t n = amp_output(transport, ctx->output + ctx->out_size, IO_BUF_SIZE - ctx->out_size);
   if (n < 0) {
     printf("internal error");
     amp_selectable_engine_close(sel);
@@ -274,18 +274,19 @@ void amp_engine_writable(amp_selectable_t *sel)
       ctx->out_size -= n;
       memmove(ctx->output, ctx->output + n, ctx->out_size);
     }
-    if (!ctx->out_size) {
+    if (ctx->out_size)
+      sel->status |= AMP_SEL_WR;
+    else
       sel->status &= ~AMP_SEL_WR;
-    }
   }
 }
 
 time_t amp_selectable_engine_tick(amp_selectable_t *sel, time_t now)
 {
   struct amp_engine_ctx *ctx = sel->context;
-  amp_engine_t *engine = ctx->engine;
-  time_t result = amp_engine_tick(engine, now);
-  if (ctx->callback) ctx->callback(amp_engine_connection(engine), ctx->context);
+  time_t result = amp_tick(ctx->transport, now);
+  if (ctx->callback) ctx->callback(ctx->connection, ctx->context);
+  amp_engine_writable(sel);
   return result;
 }
 
@@ -299,7 +300,8 @@ amp_selectable_t *amp_selectable_engine(int sock, amp_connection_t *conn,
   sel->tick = &amp_selectable_engine_tick;
   sel->status = AMP_SEL_RD | AMP_SEL_WR;
   struct amp_engine_ctx *sctx = malloc(sizeof(struct amp_engine_ctx));
-  sctx->engine = amp_engine_create(conn);
+  sctx->connection = conn;
+  sctx->transport = amp_transport(conn);
   sctx->in_size = 0;
   memmove(sctx->output, "AMQP\x00\x01\x00\x00", 8);
   sctx->out_size = 8;
@@ -435,7 +437,7 @@ void do_accept(amp_selectable_t *s)
         perror("close");
     } else {
       printf("accepted from %s:%s\n", host, serv);
-      amp_connection_t *conn = amp_connection_create();
+      amp_connection_t *conn = amp_connection();
       struct amp_engine_ctx *ctx = s->context;
       amp_selectable_t *a = amp_selectable_engine(sock, conn, ctx->callback, ctx->context);
       a->status = AMP_SEL_RD | AMP_SEL_WR;

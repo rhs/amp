@@ -72,6 +72,121 @@ int value(int argc, char **argv)
   return 0;
 }
 
+struct context_t {
+  int count;
+};
+
+void callback(amp_connection_t *conn, void *context)
+{
+  struct context_t *ctx = context;
+
+  amp_endpoint_t *endpoint = amp_endpoint_head(conn, UNINIT, ACTIVE);
+  while (endpoint)
+  {
+    switch (amp_endpoint_type(endpoint))
+    {
+    case CONNECTION:
+      {
+        amp_connection_t *c = (amp_connection_t *) endpoint;
+        if (amp_remote_state(endpoint) != UNINIT)
+          amp_open(c);
+      }
+      break;
+    case SESSION:
+      {
+        amp_session_t *ssn = (amp_session_t *) endpoint;
+        if (amp_remote_state(endpoint) != UNINIT)
+          amp_begin(ssn);
+      }
+      break;
+    case SENDER:
+    case RECEIVER:
+      {
+        amp_link_t *link = (amp_link_t *) endpoint;
+        if (amp_remote_state(endpoint) != UNINIT) {
+          printf("%ls, %ls\n", amp_remote_source(link), amp_remote_target(link));
+          amp_set_source(link, amp_remote_source(link));
+          amp_set_target(link, amp_remote_target(link));
+          amp_attach(link);
+          if (amp_endpoint_type(endpoint) == RECEIVER) {
+            amp_flow((amp_receiver_t *) endpoint, 100);
+          } else {
+            amp_delivery(link, strtag("blah"));
+          }
+        }
+      }
+      break;
+    case TRANSPORT:
+      break;
+    }
+
+    endpoint = amp_endpoint_next(endpoint, UNINIT, ACTIVE);
+  }
+
+  amp_delivery_t *delivery = amp_work_head(conn);
+  while (delivery)
+  {
+    amp_binary_t tag = amp_delivery_tag(delivery);
+    amp_link_t *link = amp_link(delivery);
+    if (amp_endpoint_type((amp_endpoint_t *)link) == RECEIVER) {
+      printf("received delivery: %s\n", amp_aformat(amp_from_binary(tag)));
+      amp_receiver_t *receiver = (amp_receiver_t *) link;
+      amp_recv(receiver, NULL, 0); amp_advance(link);
+      amp_disposition(delivery, ACCEPTED);
+    } else {
+      amp_sender_t *sender = (amp_sender_t *) link;
+      while (true) {
+        amp_delivery_t *current = amp_current(link);
+        amp_send(sender, NULL, 0);
+        if (amp_advance(link)) {
+          printf("sent delivery: %s\n", amp_aformat(amp_from_binary(amp_delivery_tag(current))));
+          char tagbuf[16];
+          sprintf(tagbuf, "%i", ctx->count++);
+          amp_delivery(link, strtag(tagbuf));
+        } else {
+          break;
+        }
+      }
+    }
+    delivery = amp_work_next(delivery);
+  }
+
+  endpoint = amp_endpoint_head(conn, ACTIVE, CLOSED);
+  while (endpoint)
+  {
+    switch (amp_endpoint_type(endpoint))
+    {
+    case CONNECTION:
+      {
+        amp_connection_t *c = (amp_connection_t *) endpoint;
+        if (amp_remote_state(endpoint) == CLOSED) {
+          amp_close(c);
+        }
+      }
+      break;
+    case SESSION:
+      {
+        amp_session_t *ssn = (amp_session_t *) endpoint;
+        if (amp_remote_state(endpoint) == CLOSED)
+          amp_end(ssn);
+      }
+      break;
+    case SENDER:
+    case RECEIVER:
+      {
+        amp_link_t *link = (amp_link_t *) endpoint;
+        if (amp_remote_state(endpoint) == CLOSED)
+          amp_detach(link);
+      }
+      break;
+    case TRANSPORT:
+      break;
+    }
+
+    endpoint = amp_endpoint_next(endpoint, ACTIVE, CLOSED);
+  }
+}
+
 int main(int argc, char **argv)
 {
   if (argc > 1 && !strcmp(argv[1], "value"))
@@ -82,31 +197,32 @@ int main(int argc, char **argv)
   amp_driver_t *drv = amp_driver();
   amp_selectable_t *sel;
   if (argc > 1) {
-    amp_connection_t *conn = amp_connection_create();
-    amp_session_t *ssn = amp_session_create();
+    amp_connection_t *conn = amp_connection();
+    amp_session_t *ssn = amp_session(conn);
     bool send = !strcmp(argv[1], "send");
-    amp_link_t *lnk = amp_link_create(send, L"test-link");
+    amp_link_t *lnk;
     if (send) {
-      amp_link_set_target(lnk, L"queue");
+      lnk = (amp_link_t *) amp_sender(ssn, L"link");
+      amp_set_target(lnk, L"queue");
     } else {
-      amp_link_set_source(lnk, L"queue");
+      lnk = (amp_link_t *) amp_receiver(ssn, L"link");
+      amp_set_source(lnk, L"queue");
     }
-    amp_connection_add(conn, ssn);
-    amp_session_add(ssn, lnk);
-    amp_connection_open(conn);
-    amp_session_begin(ssn);
-    amp_link_attach(lnk);
+    amp_open(conn); amp_begin(ssn); amp_attach(lnk);
     if (send) {
-      amp_link_send(lnk, "a", "testing", 7);
-      amp_link_send(lnk, "b", "one", 3);
-      amp_link_send(lnk, "c", "two", 3);
-      amp_link_send(lnk, "d", "three", 5);
+      amp_sender_t *snd = (amp_sender_t *) lnk;
+      amp_delivery(lnk, strtag("a")); amp_send(snd, "testing", 7); amp_advance(lnk);
+      amp_delivery(lnk, strtag("b")); amp_send(snd, "one", 3); amp_advance(lnk);
+      amp_delivery(lnk, strtag("c")); amp_send(snd, "two", 3); amp_advance(lnk);
+      amp_delivery(lnk, strtag("d")); amp_send(snd, "three", 5); amp_advance(lnk);
     } else {
-      amp_link_flow(lnk, 10);
+      amp_receiver_t *rcv = (amp_receiver_t *) lnk;
+      amp_flow(rcv, 10);
     }
     sel = amp_connector("0.0.0.0", "5672", conn, 0, 0);
   } else {
-    sel = amp_acceptor("0.0.0.0", "5672", 0, 0);
+    struct context_t ctx = {0};
+    sel = amp_acceptor("0.0.0.0", "5672", callback, &ctx);
   }
   if (!sel) {
     perror("driver");

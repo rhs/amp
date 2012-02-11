@@ -134,6 +134,7 @@ amp_value_t amp_from_list(amp_list_t *l);
 amp_value_t amp_from_map(amp_map_t *m);
 amp_value_t amp_from_tag(amp_tag_t *t);
 amp_value_t amp_from_ref(void *r);
+amp_value_t amp_from_binary(amp_binary_t b);
 
 int amp_compare_string(amp_string_t a, amp_string_t b);
 int amp_compare_binary(amp_binary_t a, amp_binary_t b);
@@ -180,9 +181,12 @@ void amp_visit_tag(amp_tag_t *t, void (*visitor)(amp_value_t));
 #define amp_to_uint8(V) ((V).u.as_ubyte)
 #define amp_to_uint16(V) ((V).u.as_ushort)
 #define amp_to_uint32(V) ((V).u.as_uint)
+#define amp_to_int32(V) ((V).u.as_int)
 #define amp_to_bool(V) ((V).u.as_boolean)
 #define amp_to_string(V) ((V).u.as_string)
 #define amp_to_binary(V) ((V).u.as_binary)
+
+amp_binary_t amp_binary_dup(amp_binary_t binary);
 
 /* arrays */
 
