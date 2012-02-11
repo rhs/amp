@@ -4,5 +4,7 @@
 src/codec/encodings.h
 src/protocol.h
 src/amp
-src/broker
+src/test
 src/librhsamp.so
+spec/build
+spec/dist
