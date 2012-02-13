@@ -53,11 +53,11 @@ amp_endpoint_state_t amp_remote_state(amp_endpoint_t *endpoint);
 amp_error_t amp_local_error(amp_endpoint_t *endpoint);
 amp_error_t amp_remote_error(amp_endpoint_t *endpoint);
 void amp_destroy(amp_endpoint_t *endpoint);
+void amp_open(amp_endpoint_t *endpoint);
+void amp_close(amp_endpoint_t *endpoint);
 
 // connection
 amp_connection_t *amp_connection();
-void amp_open(amp_connection_t *connection);
-void amp_close(amp_connection_t *connection);
 amp_delivery_t *amp_work_head(amp_connection_t *connection);
 amp_delivery_t *amp_work_next(amp_delivery_t *delivery);
 
@@ -78,14 +78,11 @@ ssize_t amp_output(amp_transport_t *transport, char *bytes, size_t size);
 time_t amp_tick(amp_transport_t *engine, time_t now);
 
 // session
-void amp_begin(amp_session_t *session);
-void amp_end(amp_session_t *session);
 amp_sender_t *amp_sender(amp_session_t *session, wchar_t *name);
 amp_receiver_t *amp_receiver(amp_session_t *session, wchar_t *name);
 
 // link
-void amp_attach(amp_link_t *link);
-void amp_detach(amp_link_t *link);
+amp_session_t *amp_get_session(amp_link_t *link);
 void amp_set_source(amp_link_t *link, wchar_t *source);
 void amp_set_target(amp_link_t *link, wchar_t *target);
 wchar_t *amp_remote_source(amp_link_t *link);

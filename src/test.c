@@ -1,4 +1,4 @@
-#include <amp/engine2.h>
+#include <amp/engine.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -7,14 +7,14 @@
 int main(int argc, char **argv)
 {
   amp_connection_t *conn = amp_connection();
-  amp_open(conn);
+  amp_open((amp_endpoint_t *)conn);
 
   amp_transport(conn);
 
   for (int i = 0; i < 1; i++)
   {
     amp_session_t *ssn = amp_session(conn);
-    amp_begin(ssn);
+    amp_open((amp_endpoint_t *)ssn);
     for (int j = 0; j < 1; j++)
     {
       amp_link_t *l;
@@ -26,7 +26,7 @@ int main(int argc, char **argv)
       {
         amp_delivery(l, strtag("tag0"));
       }
-      amp_attach(l);
+      amp_open((amp_endpoint_t *)l);
       amp_link_dump(l);
       amp_delivery_t *d = amp_delivery(l, strtag("tag1"));
       for (int k = 0; k < 16; k++) {

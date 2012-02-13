@@ -224,6 +224,39 @@ void amp_endpoint_init(amp_endpoint_t *endpoint, int type, amp_connection_t *con
   LL_ADD_PFX(conn->endpoint_head, conn->endpoint_tail, endpoint, endpoint_);
 }
 
+amp_connection_t *amp_get_connection(amp_endpoint_t *endpoint)
+{
+  switch (endpoint->type) {
+  case CONNECTION:
+    return (amp_connection_t *) endpoint;
+  case SESSION:
+    return ((amp_session_t *) endpoint)->connection;
+  case SENDER:
+  case RECEIVER:
+    return ((amp_link_t *) endpoint)->session->connection;
+  case TRANSPORT:
+    return ((amp_transport_t *) endpoint)->connection;
+  }
+
+  return NULL;
+}
+
+void amp_modified(amp_connection_t *connection, amp_endpoint_t *endpoint);
+
+void amp_open(amp_endpoint_t *endpoint)
+{
+  // TODO: do we care about the current state?
+  endpoint->local_state = ACTIVE;
+  amp_modified(amp_get_connection(endpoint), endpoint);
+}
+
+void amp_close(amp_endpoint_t *endpoint)
+{
+  // TODO: do we care about the current state?
+  endpoint->local_state = CLOSED;
+  amp_modified(amp_get_connection(endpoint), endpoint);
+}
+
 amp_connection_t *amp_connection()
 {
   amp_connection_t *conn = malloc(sizeof(amp_connection_t));
@@ -297,6 +330,7 @@ void amp_add_tpwork(amp_connection_t *connection, amp_delivery_t *delivery)
   {
     LL_ADD_PFX(connection->tpwork_head, connection->tpwork_tail, delivery, tpwork_);
     delivery->tpwork = true;
+    amp_modified(connection, &connection->endpoint);
   }
 }
 
@@ -338,20 +372,6 @@ void amp_clear_modified(amp_connection_t *connection, amp_endpoint_t *endpoint)
     endpoint->transport_prev = NULL;
     endpoint->modified = false;
   }
-}
-
-void amp_open(amp_connection_t *conn)
-{
-  // TODO: do we care about the current state?
-  conn->endpoint.local_state = ACTIVE;
-  amp_modified(conn, &conn->endpoint);
-}
-
-void amp_close(amp_connection_t *conn)
-{
-  // TODO: do we care about the current state?
-  conn->endpoint.local_state = CLOSED;
-  amp_modified(conn, &conn->endpoint);
 }
 
 bool amp_matches(amp_endpoint_t *endpoint, amp_endpoint_state_t local,
@@ -397,20 +417,6 @@ amp_session_t *amp_session(amp_connection_t *conn)
   ssn->link_count = 0;
 
   return ssn;
-}
-
-void amp_begin(amp_session_t *ssn)
-{
-  // TODO: do we care about the current state?
-  ssn->endpoint.local_state = ACTIVE;
-  amp_modified(ssn->connection, &ssn->endpoint);
-}
-
-void amp_end(amp_session_t *ssn)
-{
-  // TODO: do we care about the current state?
-  ssn->endpoint.local_state = CLOSED;
-  amp_modified(ssn->connection, &ssn->endpoint);
 }
 
   /*  amp_map_set(MAP, amp_symbol(AMP_HEAP, NAME ## _SYM), amp_ulong(AMP_HEAP, NAME)); \ */
@@ -574,18 +580,9 @@ amp_receiver_t *amp_receiver(amp_session_t *session, wchar_t *name)
   return rcv;
 }
 
-void amp_attach(amp_link_t *link)
+amp_session_t *amp_get_session(amp_link_t *link)
 {
-  // TODO: do we care about the current state?
-  link->endpoint.local_state = ACTIVE;
-  amp_modified(link->session->connection, &link->endpoint);
-}
-
-void amp_detach(amp_link_t *link)
-{
-  // TODO: do we care about the current state?
-  link->endpoint.local_state = CLOSED;
-  amp_modified(link->session->connection, &link->endpoint);
+  return link->session;
 }
 
 amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t tag)
@@ -1085,7 +1082,7 @@ void amp_process_disp_receiver(amp_transport_t *transport, amp_endpoint_t *endpo
 
 void amp_process_msg_data(amp_transport_t *transport, amp_endpoint_t *endpoint)
 {
-  if (endpoint->type == CONNECTION && endpoint->local_state == ACTIVE)
+  if (endpoint->type == CONNECTION && !transport->close_sent)
   {
     amp_connection_t *conn = (amp_connection_t *) endpoint;
     amp_delivery_t *delivery = conn->tpwork_head;
@@ -1095,13 +1092,17 @@ void amp_process_msg_data(amp_transport_t *transport, amp_endpoint_t *endpoint)
       if (link->endpoint.type == SENDER) {
         amp_session_state_t *ssn_state = amp_session_state(transport, link->session);
         amp_link_state_t *link_state = amp_link_state(ssn_state, link);
-        amp_init_frame(transport);
-        amp_field(transport, TRANSFER_HANDLE, amp_value("I", link_state->local_handle));
-        amp_field(transport, TRANSFER_DELIVERY_ID, amp_value("I", ssn_state->next_outgoing_id++));
-        amp_field(transport, TRANSFER_DELIVERY_TAG, amp_from_binary(delivery->tag));
-        amp_field(transport, TRANSFER_MESSAGE_FORMAT, amp_value("I", 0));
-        //amp_append_payload(transport, bytes, n);
-        amp_post_frame(transport, ssn_state->local_channel, TRANSFER_CODE);
+        amp_delivery_state_t *state = amp_delivery_state(delivery);
+        if (!state->sent && ssn_state->local_channel >= 0 && link_state->local_handle >= 0) {
+          amp_init_frame(transport);
+          amp_field(transport, TRANSFER_HANDLE, amp_value("I", link_state->local_handle));
+          amp_field(transport, TRANSFER_DELIVERY_ID, amp_value("I", ssn_state->next_outgoing_id++));
+          amp_field(transport, TRANSFER_DELIVERY_TAG, amp_from_binary(delivery->tag));
+          amp_field(transport, TRANSFER_MESSAGE_FORMAT, amp_value("I", 0));
+          //amp_append_payload(transport, bytes, n);
+          amp_post_frame(transport, ssn_state->local_channel, TRANSFER_CODE);
+          state->sent = true;
+        }
       }
       delivery = delivery->tpwork_next;
     }
@@ -1126,15 +1127,16 @@ void amp_process_link_teardown(amp_transport_t *transport, amp_endpoint_t *endpo
     amp_session_t *session = link->session;
     amp_session_state_t *ssn_state = amp_session_state(transport, session);
     amp_link_state_t *state = amp_link_state(ssn_state, link);
-    if (endpoint->local_state == CLOSED && state->local_handle != -1) {
+    if (endpoint->local_state == CLOSED && (int32_t) state->local_handle >= 0) {
       amp_init_frame(transport);
       amp_field(transport, DETACH_HANDLE, amp_value("I", state->local_handle));
+      amp_field(transport, DETACH_CLOSED, amp_boolean(true));
       /* XXX: error
     if (condition)
       // XXX: symbol
       amp_engine_field(eng, DETACH_ERROR, amp_value("B([zS])", ERROR_CODE, condition, description)); */
       amp_post_frame(transport, ssn_state->local_channel, DETACH_CODE);
-      state->local_handle = -1;
+      state->local_handle = -2;
     }
   }
 }
@@ -1145,14 +1147,14 @@ void amp_process_ssn_teardown(amp_transport_t *transport, amp_endpoint_t *endpoi
   {
     amp_session_t *session = (amp_session_t *) endpoint;
     amp_session_state_t *state = amp_session_state(transport, session);
-    if (endpoint->local_state == CLOSED && state->local_channel != -1)
+    if (endpoint->local_state == CLOSED && (int16_t) state->local_channel >= 0)
     {
       amp_init_frame(transport);
       /*if (condition)
       // XXX: symbol
       amp_engine_field(eng, DETACH_ERROR, amp_value("B([zS])", ERROR_CODE, condition, description));*/
       amp_post_frame(transport, state->local_channel, END_CODE);
-      state->local_channel = -1;
+      state->local_channel = -2;
     }
   }
 }

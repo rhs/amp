@@ -47,6 +47,7 @@ typedef int32_t amp_sequence_t;
 typedef struct {
   amp_delivery_t *delivery;
   amp_sequence_t id;
+  bool sent;
 } amp_delivery_state_t;
 
 typedef struct {
