@@ -199,7 +199,7 @@ void client_callback(amp_connection_t *connection, void *context)
       printf("received delivery: %s\n", amp_aformat(amp_from_binary(amp_delivery_tag(current))));
       amp_receiver_t *receiver = (amp_receiver_t *) link;
       amp_recv(receiver, NULL, 0); amp_advance(link);
-      amp_disposition(delivery, ACCEPTED);
+      amp_disposition(current, ACCEPTED);
       ctx->recv_count--;
       if (!ctx->recv_count) {
         amp_close((amp_endpoint_t *)link);
@@ -223,7 +223,7 @@ void client_callback(amp_connection_t *connection, void *context)
     case TRANSPORT:
       break;
     }
-    endpoint = amp_endpoint_next(endpoint, ACTIVE, CLOSED);
+    endpoint = amp_endpoint_next(endpoint, CLOSED, CLOSED);
   }
 }
 

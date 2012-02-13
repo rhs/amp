@@ -1044,7 +1044,7 @@ void amp_process_flow_receiver(amp_transport_t *transport, amp_endpoint_t *endpo
 
 void amp_process_disp_receiver(amp_transport_t *transport, amp_endpoint_t *endpoint)
 {
-  if (endpoint->type == CONNECTION && endpoint->local_state == ACTIVE)
+  if (endpoint->type == CONNECTION && !transport->close_sent)
   {
     amp_connection_t *conn = (amp_connection_t *) endpoint;
     amp_delivery_t *delivery = conn->tpwork_head;
@@ -1054,28 +1054,31 @@ void amp_process_disp_receiver(amp_transport_t *transport, amp_endpoint_t *endpo
       if (link->endpoint.type == RECEIVER) {
         amp_delivery_state_t *state = amp_delivery_state(delivery);
         amp_session_state_t *ssn_state = amp_session_state(transport, link->session);
-        amp_init_frame(transport);
-        amp_field(transport, DISPOSITION_ROLE, amp_boolean(link->endpoint.type == RECEIVER));
-        amp_field(transport, DISPOSITION_FIRST, amp_uint(state->id));
-        amp_field(transport, DISPOSITION_LAST, amp_uint(state->id));
-        // XXX
-        amp_field(transport, DISPOSITION_SETTLED, amp_boolean(false));
-        uint8_t code;
-        switch(delivery->state) {
-        case ACCEPTED:
-          code = ACCEPTED_CODE;
-          break;
-        case RELEASED:
-          code = RELEASED_CODE;
-          break;
-          //TODO: rejected and modified (both take extra data which may need to be passed through somehow) e.g. change from enum to discriminated union?
-        default:
-          code = 0;
+        // XXX: need to prevent duplicate disposition sending
+        if ((int16_t) ssn_state->local_channel >= 0) {
+          amp_init_frame(transport);
+          amp_field(transport, DISPOSITION_ROLE, amp_boolean(link->endpoint.type == RECEIVER));
+          amp_field(transport, DISPOSITION_FIRST, amp_uint(state->id));
+          amp_field(transport, DISPOSITION_LAST, amp_uint(state->id));
+          // XXX
+          amp_field(transport, DISPOSITION_SETTLED, amp_boolean(false));
+          uint8_t code;
+          switch(delivery->state) {
+          case ACCEPTED:
+            code = ACCEPTED_CODE;
+            break;
+          case RELEASED:
+            code = RELEASED_CODE;
+            break;
+            //TODO: rejected and modified (both take extra data which may need to be passed through somehow) e.g. change from enum to discriminated union?
+          default:
+            code = 0;
+          }
+          if (code)
+            amp_field(transport, DISPOSITION_STATE, amp_value("B([])", code));
+          //amp_field(transport, DISPOSITION_BATCHABLE, amp_boolean(batchable));
+          amp_post_frame(transport, ssn_state->local_channel, DISPOSITION_CODE);
         }
-        if (code)
-          amp_field(transport, DISPOSITION_STATE, amp_value("B([])", code));
-        //amp_field(transport, DISPOSITION_BATCHABLE, amp_boolean(batchable));
-        amp_post_frame(transport, ssn_state->local_channel, DISPOSITION_CODE);
       }
       delivery = delivery->tpwork_next;
     }
