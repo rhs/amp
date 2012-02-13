@@ -25,7 +25,6 @@
 #include <amp/framing.h>
 #include <amp/value.h>
 #include "../protocol.h"
-#define _GNU_SOURCE
 #include <wchar.h>
 
 #include <stdio.h>
