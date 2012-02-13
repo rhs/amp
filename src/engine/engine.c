@@ -974,7 +974,7 @@ void amp_process_ssn_setup(amp_transport_t *transport, amp_endpoint_t *endpoint)
     if (endpoint->local_state != UNINIT && state->local_channel == (uint16_t) -1)
     {
       amp_init_frame(transport);
-      if (state->remote_channel != -1)
+      if ((int16_t) state->remote_channel >= 0)
         amp_field(transport, BEGIN_REMOTE_CHANNEL, amp_value("H", state->remote_channel));
       amp_field(transport, BEGIN_NEXT_OUTGOING_ID, amp_value("I", state->next_outgoing_id));
       amp_field(transport, BEGIN_INCOMING_WINDOW, amp_value("I", state->incoming_window));
@@ -1093,7 +1093,7 @@ void amp_process_msg_data(amp_transport_t *transport, amp_endpoint_t *endpoint)
         amp_session_state_t *ssn_state = amp_session_state(transport, link->session);
         amp_link_state_t *link_state = amp_link_state(ssn_state, link);
         amp_delivery_state_t *state = amp_delivery_state(delivery);
-        if (!state->sent && ssn_state->local_channel >= 0 && link_state->local_handle >= 0) {
+        if (!state->sent && (int16_t) ssn_state->local_channel >= 0 && (int32_t) link_state->local_handle >= 0) {
           amp_init_frame(transport);
           amp_field(transport, TRANSFER_HANDLE, amp_value("I", link_state->local_handle));
           amp_field(transport, TRANSFER_DELIVERY_ID, amp_value("I", ssn_state->next_outgoing_id++));
