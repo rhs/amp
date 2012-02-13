@@ -72,13 +72,13 @@ int value(int argc, char **argv)
   return 0;
 }
 
-struct context_t {
+struct server_context {
   int count;
 };
 
 void server_callback(amp_connection_t *conn, void *context)
 {
-  struct context_t *ctx = context;
+  struct server_context *ctx = context;
 
   amp_endpoint_t *endpoint = amp_endpoint_head(conn, UNINIT, ACTIVE);
   while (endpoint)
@@ -163,8 +163,16 @@ void server_callback(amp_connection_t *conn, void *context)
   }
 }
 
+struct client_context {
+  int recv_count;
+  int send_count;
+  amp_driver_t *driver;
+};
+
 void client_callback(amp_connection_t *connection, void *context)
 {
+  struct client_context *ctx = context;
+
   amp_delivery_t *delivery = amp_work_head(connection);
   while (delivery)
   {
@@ -192,6 +200,12 @@ void client_callback(amp_connection_t *connection, void *context)
       amp_receiver_t *receiver = (amp_receiver_t *) link;
       amp_recv(receiver, NULL, 0); amp_advance(link);
       amp_disposition(delivery, ACCEPTED);
+      ctx->recv_count--;
+      if (!ctx->recv_count) {
+        amp_close((amp_endpoint_t *)link);
+        amp_close((amp_endpoint_t *)amp_get_session(link));
+        amp_close((amp_endpoint_t *)connection);
+      }
     }
     delivery = amp_work_next(delivery);
   }
@@ -201,7 +215,7 @@ void client_callback(amp_connection_t *connection, void *context)
   {
     switch (amp_endpoint_type(endpoint)) {
     case CONNECTION:
-      amp_driver_stop(context);
+      amp_driver_stop(ctx->driver);
       break;
     case SESSION:
     case SENDER:
@@ -235,19 +249,20 @@ int main(int argc, char **argv)
       amp_set_source(lnk, L"queue");
     }
     amp_open((amp_endpoint_t *)conn); amp_open((amp_endpoint_t *)ssn); amp_open((amp_endpoint_t *)lnk);
+    struct client_context ctx = {10, 10, drv};
     if (send) {
-      amp_sender_t *snd = (amp_sender_t *) lnk;
-      amp_delivery(lnk, strtag("a")); amp_send(snd, "testing", 7); amp_advance(lnk);
-      amp_delivery(lnk, strtag("b")); amp_send(snd, "one", 3); amp_advance(lnk);
-      amp_delivery(lnk, strtag("c")); amp_send(snd, "two", 3); amp_advance(lnk);
-      amp_delivery(lnk, strtag("d")); amp_send(snd, "three", 5); amp_advance(lnk);
+      char buf[16];
+      for (int i = 0; i < ctx.send_count; i++) {
+        sprintf(buf, "%c", 'a' + i);
+        amp_delivery(lnk, strtag(buf));
+      }
     } else {
       amp_receiver_t *rcv = (amp_receiver_t *) lnk;
-      amp_flow(rcv, 10);
+      amp_flow(rcv, ctx.recv_count);
     }
-    sel = amp_connector("0.0.0.0", "5672", conn, client_callback, drv);
+    sel = amp_connector("0.0.0.0", "5672", conn, client_callback, &ctx);
   } else {
-    struct context_t ctx = {0};
+    struct server_context ctx = {0};
     sel = amp_acceptor("0.0.0.0", "5672", server_callback, &ctx);
   }
   if (!sel) {

@@ -283,7 +283,10 @@ amp_delivery_t *amp_work_head(amp_connection_t *connection)
 
 amp_delivery_t *amp_work_next(amp_delivery_t *delivery)
 {
-  return delivery->work_next;
+  if (delivery->work)
+    return delivery->work_next;
+  else
+    return amp_work_head(delivery->link->session->connection);
 }
 
 void amp_add_work(amp_connection_t *connection, amp_delivery_t *delivery)
@@ -1254,5 +1257,4 @@ void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition)
   delivery->state = disposition;
   amp_connection_t *connection = delivery->link->session->connection;
   amp_add_tpwork(connection, delivery);
-  amp_modified(connection, &connection->endpoint);
 }
