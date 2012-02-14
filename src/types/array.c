@@ -20,10 +20,10 @@
  */
 
 #include <amp/util.h>
-#include <amp/value.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include "../codec/encodings.h"
+#include "value-internal.h"
 
 static char type_to_code(enum TYPE type)
 {

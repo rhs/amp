@@ -20,7 +20,6 @@
  */
 
 #include <amp/codec.h>
-#include <amp/value.h>
 #include <amp/util.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -32,6 +31,7 @@
 #include <iconv.h>
 #include <arpa/inet.h>
 #include "../codec/encodings.h"
+#include "value-internal.h"
 
 int amp_compare_string(amp_string_t a, amp_string_t b)
 {

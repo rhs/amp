@@ -20,12 +20,12 @@
  */
 
 #include <amp/codec.h>
-#include <amp/value.h>
 #include <iconv.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include "../codec/encodings.h"
+#include "value-internal.h"
 
 static enum TYPE amqp_code_to_type(uint8_t code)
 {

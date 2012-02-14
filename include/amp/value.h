@@ -94,25 +94,6 @@ struct  amp_value_st {
   } u;
 };
 
-struct amp_array_st {
-  enum TYPE type;
-  size_t size;
-  size_t capacity;
-  amp_value_t values[];
-};
-
-struct amp_list_st {
-  size_t size;
-  size_t capacity;
-  amp_value_t values[];
-};
-
-struct amp_map_st {
-  size_t size;
-  size_t capacity;
-  amp_value_t pairs[];
-};
-
 struct amp_tag_st {
   amp_value_t descriptor;
   amp_value_t value;

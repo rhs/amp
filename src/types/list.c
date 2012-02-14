@@ -20,9 +20,9 @@
  */
 
 #include <amp/codec.h>
-#include <amp/value.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "value-internal.h"
 
 amp_list_t *amp_list(int capacity)
 {
