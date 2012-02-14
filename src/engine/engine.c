@@ -667,7 +667,7 @@ void amp_settle(amp_delivery_t *delivery)
 
 void amp_do_open(amp_transport_t *transport, amp_list_t *args)
 {
-  printf("OPEN!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("OPEN %s\n", amp_aformat(amp_from_list(args)));
   amp_connection_t *conn = transport->connection;
   // TODO: store the state
   conn->endpoint.remote_state = ACTIVE;
@@ -675,7 +675,7 @@ void amp_do_open(amp_transport_t *transport, amp_list_t *args)
 
 void amp_do_begin(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
 {
-  printf("BEGIN!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("BEGIN %s\n", amp_aformat(amp_from_list(args)));
   amp_value_t remote_channel = amp_list_get(args, BEGIN_REMOTE_CHANNEL);
   amp_session_state_t *state;
   if (remote_channel.type == USHORT) {
@@ -704,7 +704,7 @@ amp_link_state_t *amp_find_link(amp_session_state_t *ssn_state, amp_string_t nam
 
 void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
 {
-  printf("ATTACH!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("ATTACH %s\n", amp_aformat(amp_from_list(args)));
   uint32_t handle = amp_to_uint32(amp_list_get(args, ATTACH_HANDLE));
   bool is_sender = amp_to_bool(amp_list_get(args, ATTACH_ROLE));
   amp_string_t name = amp_to_string(amp_list_get(args, ATTACH_NAME));
@@ -768,7 +768,7 @@ void amp_do_transfer(amp_transport_t *transport, uint16_t channel, amp_list_t *a
 
 void amp_do_flow(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  printf("FLOW!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("FLOW %s\n", amp_aformat(amp_from_list(args)));
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
 
   amp_value_t vhandle = amp_list_get(args, FLOW_HANDLE);
@@ -793,9 +793,21 @@ void amp_do_flow(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
   }
 }
 
+void amp_do_disposition(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
+{
+  printf("DISPOSITION %s\n", amp_aformat(amp_from_list(args)));
+  /*amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
+  bool role = amp_to_bool(amp_list_get(args, DISPOSITION_ROLE));
+  amp_sequence_t first = amp_to_int32(amp_list_get(args, DISPOSITION_FIRST));
+  amp_sequence_t last = amp_to_int32(amp_list_get(args, DISPOSITION_LAST));
+  bool settled = amp_to_bool(amp_list_get(args, DISPOSITION_SETTLED));
+  amp_tag_t *state = amp_to_tag(amp_list_get(args, DISPOSITION_STATE));*/
+
+}
+
 void amp_do_detach(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  printf("DETACH!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("DETACH %s\n", amp_aformat(amp_from_list(args)));
 
   uint32_t handle = amp_to_uint32(amp_list_get(args, DETACH_HANDLE));
   bool closed = amp_to_bool(amp_list_get(args, DETACH_CLOSED));
@@ -816,7 +828,7 @@ void amp_do_detach(amp_transport_t *transport, uint16_t channel, amp_list_t *arg
 
 void amp_do_end(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  printf("END!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("END %s\n", amp_aformat(amp_from_list(args)));
 
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
   amp_session_t *session = ssn_state->session;
@@ -827,7 +839,7 @@ void amp_do_end(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 
 void amp_do_close(amp_transport_t *transport, amp_list_t *args)
 {
-  printf("CLOSE!!!! %s\n", amp_aformat(amp_from_list(args)));
+  printf("CLOSE %s\n", amp_aformat(amp_from_list(args)));
 
   transport->connection->endpoint.remote_state = CLOSED;
 }
@@ -858,7 +870,7 @@ void amp_dispatch(amp_transport_t *transport, uint16_t channel,
     amp_do_flow(transport, channel, args);
     break;
   case DISPOSITION_IDX:
-    //    amp_engine_do_disposition(e, channel, args);
+    amp_do_disposition(transport, channel, args);
     break;
   case DETACH_IDX:
     amp_do_detach(transport, channel, args);
