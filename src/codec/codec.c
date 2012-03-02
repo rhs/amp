@@ -191,7 +191,7 @@ int amp_write_start(char **pos, char *limit, char **start) {
 
 static int amp_write_end(char **pos, char *limit, char *start, size_t count, uint8_t code) {
   int n;
-  if ((n = amp_write_fixed32(&start, limit, *pos - start, code)))
+  if ((n = amp_write_fixed32(&start, limit, *pos - start - 5, code)))
     return n;
   *((uint32_t *) start) = htonl(count);
   return 0;
@@ -509,13 +509,13 @@ void print_bytes(char *label, int size, char *bytes) {
 void print_binary(void *ctx, size_t size, char *bytes) { print_bytes("bin", size, bytes); }
 void print_utf8(void *ctx, size_t size, char *bytes) { print_bytes("utf8", size, bytes); }
 void print_symbol(void *ctx, size_t size, char *bytes) { print_bytes("sym", size, bytes); }
-void print_start_array(void *ctx, size_t count, uint8_t code) { printf("begin array %zd\n", count); }
-void print_stop_array(void *ctx, size_t count, uint8_t code) { printf("begin array %zd\n", count); }
-void print_start_list(void *ctx, size_t count) { printf("begin list %zd\n", count); }
-void print_stop_list(void *ctx, size_t count) { printf("begin list %zd\n", count); }
-void print_start_map(void *ctx, size_t count) { printf("begin map %zd\n", count); }
-void print_stop_map(void *ctx, size_t count) { printf("begin map %zd\n", count); }
-void print_start_descriptor(void *ctx) { printf("descriptor "); }
-void print_stop_descriptor(void *ctx) { printf("descriptor "); }
+void print_start_array(void *ctx, size_t count, uint8_t code) { printf("start array %zd\n", count); }
+void print_stop_array(void *ctx, size_t count, uint8_t code) { printf("stop array %zd\n", count); }
+void print_start_list(void *ctx, size_t count) { printf("start list %zd\n", count); }
+void print_stop_list(void *ctx, size_t count) { printf("stop list %zd\n", count); }
+void print_start_map(void *ctx, size_t count) { printf("start map %zd\n", count); }
+void print_stop_map(void *ctx, size_t count) { printf("stop map %zd\n", count); }
+void print_start_descriptor(void *ctx) { printf("start descriptor "); }
+void print_stop_descriptor(void *ctx) { printf("stop descriptor "); }
 
 amp_data_callbacks_t *printer = &AMP_DATA_CALLBACKS(print);
