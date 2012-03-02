@@ -86,25 +86,33 @@ static void push_frame(void *ptr, amp_value_t *values, size_t limit)
   frm->values = values;
 }
 
-static void pop_frame(void *ptr)
-{
-  struct amp_decode_context_st *ctx = CTX_CAST(ptr);
-  ctx->depth--;
-}
-
 static struct amp_decode_context_frame_st *frame(void *ptr)
 {
   struct amp_decode_context_st *ctx = CTX_CAST(ptr);
   return &ctx->frames[ctx->depth-1];
 }
 
-static amp_value_t *next_value(void *ptr)
+static void autopop(void *ptr)
 {
+  struct amp_decode_context_st *ctx = CTX_CAST(ptr);
   struct amp_decode_context_frame_st *frm = frame(ptr);
   while (frm->limit && frm->count == frm->limit) {
-    pop_frame(ptr);
+    ctx->depth--;
     frm = frame(ptr);
   }
+}
+
+static void pop_frame(void *ptr)
+{
+  autopop(ptr);
+  struct amp_decode_context_st *ctx = CTX_CAST(ptr);
+  ctx->depth--;
+}
+
+static amp_value_t *next_value(void *ptr)
+{
+  autopop(ptr);
+  struct amp_decode_context_frame_st *frm = frame(ptr);
   amp_value_t *result = &frm->values[frm->count++];
   return result;
 }
