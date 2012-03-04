@@ -101,6 +101,16 @@ void amp_visit_array(amp_array_t *a, void (*visitor)(amp_value_t))
   }
 }
 
+size_t amp_format_sizeof_array(amp_array_t *array)
+{
+  size_t result = 4;
+  for (int i = 0; i < array->size; i++)
+  {
+    result += amp_format_sizeof(array->values[i]) + 2;
+  }
+  return result;
+}
+
 int amp_format_array(char **pos, char *limit, amp_array_t *array)
 {
   int e;

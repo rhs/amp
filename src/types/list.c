@@ -141,6 +141,15 @@ static int min(int a, int b)
     return b;
 }
 
+size_t amp_format_sizeof_list(amp_list_t *list)
+{
+  size_t result = 2;
+  for (int i = 0; i < list->size; i++) {
+    result += amp_format_sizeof(list->values[i]) + 2;
+  }
+  return result;
+}
+
 int amp_format_list(char **pos, char *limit, amp_list_t *list)
 {
   int e;

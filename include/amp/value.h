@@ -131,12 +131,19 @@ uintptr_t amp_hash_map(amp_map_t *m);
 uintptr_t amp_hash_tag(amp_tag_t *t);
 uintptr_t amp_hash_value(amp_value_t v);
 
+size_t amp_format_sizeof(amp_value_t v);
+size_t amp_format_sizeof_array(amp_array_t *array);
+size_t amp_format_sizeof_list(amp_list_t *list);
+size_t amp_format_sizeof_map(amp_map_t *map);
+size_t amp_format_sizeof_tag(amp_tag_t *tag);
+
 int amp_format_binary(char **pos, char *limit, amp_binary_t binary);
 int amp_format_array(char **pos, char *limit, amp_array_t *array);
 int amp_format_list(char **pos, char *limit, amp_list_t *list);
 int amp_format_map(char **pos, char *limit, amp_map_t *map);
 int amp_format_tag(char **pos, char *limit, amp_tag_t *tag);
 int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n);
+int amp_format(char *buf, size_t size, amp_value_t v);
 char *amp_aformat(amp_value_t v);
 
 size_t amp_encode_sizeof(amp_value_t v);

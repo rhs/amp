@@ -547,26 +547,81 @@ int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n)
   return 0;
 }
 
+int amp_format(char *buf, size_t size, amp_value_t v)
+{
+  char *pos = buf;
+  int n = amp_format_value(&pos, buf + size, &v, 1);
+  if (!n) {
+    pos[0] = '\0';
+  } else {
+    if (buf + size - pos < 4) {
+      pos = buf + size - 4;
+    }
+    if (pos > buf) {
+      amp_fmt(&pos, buf + size, "...");
+      pos[0] = '\0';
+    }
+  }
+  return pos - buf;
+}
+
 char *amp_aformat(amp_value_t v)
 {
-  int size = 16;
-  while (true)
+  size_t size = amp_format_sizeof(v) + 1;
+  char *buf = malloc(size);
+  if (!buf) return NULL;
+  char *pos = buf;
+  int n = amp_format_value(&pos, buf + size, &v, 1);
+  if (!n) {
+    pos[0] = '\0';
+    return buf;
+  } else {
+    amp_fatal("bad sizeof");
+    free(buf);
+    return NULL;
+  }
+}
+
+size_t amp_format_sizeof(amp_value_t v)
+{
+  switch (v.type)
   {
-    char *buf = malloc(size);
-    char *pos = buf;
-    if (!buf) return NULL;
-    int n = amp_format_value(&pos, buf + size, &v, 1);
-    if (!n) {
-      pos[0] = '\0';
-      return buf;
-    } else if (n == -1) {
-      size *= 2;
-      free(buf);
-    } else {
-      // XXX
-      free(buf);
-      return NULL;
-    }
+  case EMPTY:
+    return 4;
+  case BOOLEAN:
+    return 5;
+  case BYTE:
+  case UBYTE:
+    return 8;
+  case SHORT:
+  case USHORT:
+    return 16;
+  case INT:
+  case UINT:
+  case CHAR:
+  case FLOAT:
+    return 32;
+  case LONG:
+  case ULONG:
+  case DOUBLE:
+    return 64;
+  case STRING:
+    return 4*v.u.as_string.size;
+  case BINARY:
+    return 4*v.u.as_binary.size;
+  case ARRAY:
+    return amp_format_sizeof_array(v.u.as_array);
+  case LIST:
+    return amp_format_sizeof_list(v.u.as_list);
+  case MAP:
+    return amp_format_sizeof_map(v.u.as_map);
+  case TAG:
+    return amp_format_sizeof_tag(v.u.as_tag);
+  case REF:
+    return 64;
+  default:
+    amp_fatal("xxx");
+    return 0;
   }
 }
 
@@ -790,6 +845,11 @@ amp_value_t amp_tag_descriptor(amp_tag_t *t)
 amp_value_t amp_tag_value(amp_tag_t *t)
 {
   return t->value;
+}
+
+size_t amp_format_sizeof_tag(amp_tag_t *tag)
+{
+  return amp_format_sizeof(tag->descriptor) + amp_format_sizeof(tag->value) + 2;
 }
 
 int amp_format_tag(char **pos, char *limit, amp_tag_t *tag)

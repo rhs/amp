@@ -56,6 +56,18 @@ void amp_visit_map(amp_map_t *m, void (*visitor)(amp_value_t))
   }
 }
 
+size_t amp_format_sizeof_map(amp_map_t *map)
+{
+  size_t result = 2;
+  for (int i = 0; i < map->size; i++)
+  {
+    amp_value_t key = amp_map_key(map, i);
+    amp_value_t value = amp_map_value(map, i);
+    result += amp_format_sizeof(key) + 2 + amp_format_sizeof(value) + 2;
+  }
+  return result;
+}
+
 int amp_format_map(char **pos, char *limit, amp_map_t *map)
 {
   bool first = true;
