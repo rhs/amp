@@ -172,34 +172,27 @@ struct client_context {
 void client_callback(amp_connection_t *connection, void *context)
 {
   struct client_context *ctx = context;
+  char scratch[1024];
 
   amp_delivery_t *delivery = amp_work_head(connection);
   while (delivery)
   {
     amp_link_t *link = amp_link(delivery);
+    amp_delivery_t *current = amp_current(link);
     if (amp_endpoint_type((amp_endpoint_t *) link) == SENDER) {
       amp_sender_t *snd = (amp_sender_t *) link;
-      while (true) {
-        amp_delivery_t *current = amp_current(link);
-        if (!current) {
-          amp_close((amp_endpoint_t *)link);
-          amp_close((amp_endpoint_t *)amp_get_session(link));
-          amp_close((amp_endpoint_t *)connection);
-        } else {
-          amp_send(snd, NULL, 0);
-        }
-        if (amp_advance(link)) {
-          printf("sent delivery: %s\n", amp_aformat(amp_from_binary(amp_delivery_tag(current))));
-        } else {
-          break;
-        }
+      amp_send(snd, NULL, 0);
+      if (amp_advance(link)) {
+        amp_format(scratch, 1024, amp_from_binary(amp_delivery_tag(current)));
+        printf("sent delivery: %s\n", scratch);
       }
     } else {
-      amp_delivery_t *current = amp_current(link);
-      printf("received delivery: %s\n", amp_aformat(amp_from_binary(amp_delivery_tag(current))));
+      amp_format(scratch, 1024, amp_from_binary(amp_delivery_tag(current)));
+      printf("received delivery: %s\n", scratch);
       amp_receiver_t *receiver = (amp_receiver_t *) link;
       amp_recv(receiver, NULL, 0); amp_advance(link);
       amp_disposition(current, ACCEPTED);
+      amp_settle(current);
       ctx->recv_count--;
       if (!ctx->recv_count) {
         amp_close((amp_endpoint_t *)link);
@@ -207,6 +200,21 @@ void client_callback(amp_connection_t *connection, void *context)
         amp_close((amp_endpoint_t *)connection);
       }
     }
+
+    if (amp_dirty(delivery)) {
+      amp_binary_t tag = amp_delivery_tag(delivery);
+      amp_format(scratch, 1024, amp_from_binary(tag));
+      printf("disposition for %s: %u\n", scratch, amp_remote_disp(delivery));
+      amp_clean(delivery);
+      amp_settle(delivery);
+      ctx->send_count--;
+      if (!ctx->send_count) {
+        amp_close((amp_endpoint_t *)link);
+        amp_close((amp_endpoint_t *)amp_get_session(link));
+        amp_close((amp_endpoint_t *)connection);
+      }
+    }
+
     delivery = amp_work_next(delivery);
   }
 
@@ -269,7 +277,11 @@ int main(int argc, char **argv)
     perror("driver");
     exit(-1);
   }
+
   amp_driver_add(drv, sel);
   amp_driver_run(drv);
+  amp_driver_destroy(drv);
+  amp_selectable_destroy(sel);
+
   return 0;
 }

@@ -44,6 +44,7 @@ struct amp_selectable_st {
   void (*readable)(amp_selectable_t *s);
   void (*writable)(amp_selectable_t *s);
   time_t (*tick)(amp_selectable_t *s, time_t now);
+  void (*destroy)(amp_selectable_t *s);
   void *context;
 };
 
@@ -59,6 +60,17 @@ amp_driver_t *amp_driver()
     o ->stopping = false;
   }
   return o;
+}
+
+void amp_driver_destroy(amp_driver_t *d)
+{
+  for (int i = 0; i < amp_list_size(d->selectables); i++)
+  {
+    amp_selectable_t *s = amp_to_ref(amp_list_get(d->selectables, i));
+    amp_driver_remove(d, s);
+  }
+  amp_free_list(d->selectables);
+  free(d);
 }
 
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s)
@@ -141,15 +153,20 @@ amp_selectable_t *amp_selectable()
   if (!s) return NULL;
   s->status = 0;
   s->wakeup = 0;
-  s->context = NULL;
+  s->readable = NULL;
+  s->writable = NULL;
   s->tick = NULL;
+  s->destroy = NULL;
+  s->context = NULL;
   return s;
 }
 
-amp_selectable_t *amp_selectable_create()
+void amp_selectable_destroy(amp_selectable_t *s)
 {
-    return amp_selectable();
+  if (s->destroy) s->destroy(s);
+  free(s);
 }
+
 void amp_selectable_set_context(amp_selectable_t *s, void* context)
 {
     s->context = context;
@@ -290,6 +307,11 @@ time_t amp_selectable_engine_tick(amp_selectable_t *sel, time_t now)
   return result;
 }
 
+void amp_engine_destroy(amp_selectable_t *s)
+{
+  if (s->context) free(s->context);
+}
+
 amp_selectable_t *amp_selectable_engine(int sock, amp_connection_t *conn,
                                         void (*cb)(amp_connection_t*, void*), void* ctx)
 {
@@ -297,6 +319,7 @@ amp_selectable_t *amp_selectable_engine(int sock, amp_connection_t *conn,
   sel->fd = sock;
   sel->readable = &amp_engine_readable_hdr;
   sel->writable = &amp_engine_writable;
+  sel->destroy = &amp_engine_destroy;
   sel->tick = &amp_selectable_engine_tick;
   sel->status = AMP_SEL_RD | AMP_SEL_WR;
   struct amp_engine_ctx *sctx = malloc(sizeof(struct amp_engine_ctx));

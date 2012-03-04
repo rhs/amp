@@ -51,7 +51,16 @@ typedef struct {
 } amp_delivery_state_t;
 
 typedef struct {
+  amp_sequence_t next;
+  size_t capacity;
+  size_t head;
+  size_t size;
+  amp_delivery_state_t *deliveries;
+} amp_delivery_buffer_t;
+
+typedef struct {
   amp_link_t *link;
+  // XXX: stop using negative numbers
   uint32_t local_handle;
   uint32_t remote_handle;
   amp_sequence_t delivery_count;
@@ -61,16 +70,18 @@ typedef struct {
 
 typedef struct {
   amp_session_t *session;
+  // XXX: stop using negative numbers
   uint16_t local_channel;
   uint16_t remote_channel;
-  amp_sequence_t next_outgoing_id;
-  amp_sequence_t incoming_window;
-  amp_sequence_t outgoing_window;
+  amp_delivery_buffer_t incoming;
+  amp_delivery_buffer_t outgoing;
   amp_link_state_t *links;
   size_t link_capacity;
   amp_link_state_t **handles;
   size_t handle_capacity;
 } amp_session_state_t;
+
+#define SCRATCH 1024
 
 struct amp_transport_t {
   amp_endpoint_t endpoint;
@@ -88,6 +99,7 @@ struct amp_transport_t {
   size_t session_capacity;
   amp_session_state_t **channels;
   size_t channel_capacity;
+  char scratch[SCRATCH];
 };
 
 struct amp_connection_t {
@@ -144,7 +156,11 @@ struct amp_receiver_t {
 struct amp_delivery_t {
   amp_link_t *link;
   amp_binary_t tag;
-  int state;
+  int local_state;
+  int remote_state;
+  bool local_settled;
+  bool remote_settled;
+  bool dirty;
   amp_delivery_t *link_next;
   amp_delivery_t *link_prev;
   amp_delivery_t *work_next;

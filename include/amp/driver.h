@@ -47,11 +47,13 @@ int amp_selectable_connect(amp_selectable_t *s, const char *host, const char *po
 int amp_selectable_recv(amp_selectable_t *s, void* buffer, size_t size);
 int amp_selectable_send(amp_selectable_t *s, void* buffer, size_t size);
 void amp_selectable_close(amp_selectable_t *sel);
+void amp_selectable_destroy(amp_selectable_t *sel);
 
 amp_driver_t *amp_driver(void);
 void amp_driver_add(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_remove(amp_driver_t *d, amp_selectable_t *s);
 void amp_driver_run(amp_driver_t *d);
 void amp_driver_stop(amp_driver_t *d);
+void amp_driver_destroy(amp_driver_t *d);
 
 #endif /* driver.h */

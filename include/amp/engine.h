@@ -39,7 +39,7 @@ typedef struct amp_delivery_t amp_delivery_t;
 
 typedef enum amp_endpoint_state_t {UNINIT=1, ACTIVE=2, CLOSED=4} amp_endpoint_state_t;
 typedef enum amp_endpoint_type_t {CONNECTION, TRANSPORT, SESSION, SENDER, RECEIVER} amp_endpoint_type_t;
-typedef enum amp_disposition_t {RECEIVED, ACCEPTED, REJECTED, RELEASED, MODIFIED} amp_disposition_t;
+typedef enum amp_disposition_t {RECEIVED=1, ACCEPTED=2, REJECTED=3, RELEASED=4, MODIFIED=5} amp_disposition_t;
 
 /* Currently the way inheritence is done it is safe to "upcast" from
    amp_{transport,connection,session,link,sender,or receiver}_t to
@@ -110,8 +110,10 @@ amp_link_t *amp_link(amp_delivery_t *delivery);
 // how do we do delivery state?
 int amp_local_disp(amp_delivery_t *delivery);
 int amp_remote_disp(amp_delivery_t *delivery);
+bool amp_dirty(amp_delivery_t *delivery);
+void amp_clean(amp_delivery_t *delivery);
 void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition);
-int amp_format(amp_delivery_t *delivery);
+//int amp_format(amp_delivery_t *delivery);
 void amp_settle(amp_delivery_t *delivery);
 
 #define strtag(STR) ((amp_binary_t) {.bytes = (STR), .size=strlen((STR))})
