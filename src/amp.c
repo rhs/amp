@@ -164,6 +164,7 @@ void server_callback(amp_connection_t *conn, void *context)
 }
 
 struct client_context {
+  bool init;
   int recv_count;
   int send_count;
   amp_driver_t *driver;
@@ -173,6 +174,33 @@ void client_callback(amp_connection_t *connection, void *context)
 {
   struct client_context *ctx = context;
   char scratch[1024];
+
+  if (!ctx->init) {
+    ctx->init = true;
+
+    amp_session_t *ssn = amp_session(connection);
+    amp_open((amp_endpoint_t *) connection);
+    amp_open((amp_endpoint_t *) ssn);
+
+    if (ctx->send_count) {
+      amp_sender_t *snd = amp_sender(ssn, L"sender");
+      amp_set_target((amp_link_t *) snd, L"queue");
+      amp_open((amp_endpoint_t *) snd);
+
+      char buf[16];
+      for (int i = 0; i < ctx->send_count; i++) {
+        sprintf(buf, "%c", 'a' + i);
+        amp_delivery((amp_link_t *) snd, strtag(buf));
+      }
+    }
+
+    if (ctx->recv_count) {
+      amp_receiver_t *rcv = amp_receiver(ssn, L"receiver");
+      amp_set_source((amp_link_t *) rcv, L"queue");
+      amp_open((amp_endpoint_t *) rcv);
+      amp_flow(rcv, ctx->recv_count);
+    }
+  }
 
   amp_delivery_t *delivery = amp_work_head(connection);
   while (delivery)
@@ -193,11 +221,8 @@ void client_callback(amp_connection_t *connection, void *context)
       amp_recv(receiver, NULL, 0); amp_advance(link);
       amp_disposition(current, ACCEPTED);
       amp_settle(current);
-      ctx->recv_count--;
-      if (!ctx->recv_count) {
+      if (!--ctx->recv_count) {
         amp_close((amp_endpoint_t *)link);
-        amp_close((amp_endpoint_t *)amp_get_session(link));
-        amp_close((amp_endpoint_t *)connection);
       }
     }
 
@@ -207,15 +232,18 @@ void client_callback(amp_connection_t *connection, void *context)
       printf("disposition for %s: %u\n", scratch, amp_remote_disp(delivery));
       amp_clean(delivery);
       amp_settle(delivery);
-      ctx->send_count--;
-      if (!ctx->send_count) {
+      if (!--ctx->send_count) {
         amp_close((amp_endpoint_t *)link);
-        amp_close((amp_endpoint_t *)amp_get_session(link));
-        amp_close((amp_endpoint_t *)connection);
       }
     }
 
     delivery = amp_work_next(delivery);
+  }
+
+  if (!ctx->send_count && !ctx->recv_count) {
+    // XXX: how do we close the session?
+    //amp_close((amp_endpoint_t *) ssn);
+    amp_close((amp_endpoint_t *)connection);
   }
 
   amp_endpoint_t *endpoint = amp_endpoint_head(connection, CLOSED, CLOSED);
@@ -243,45 +271,16 @@ int main(int argc, char **argv)
   }
 
   amp_driver_t *drv = amp_driver();
-  amp_selectable_t *sel;
   if (argc > 1) {
-    amp_connection_t *conn = amp_connection();
-    amp_session_t *ssn = amp_session(conn);
-    bool send = !strcmp(argv[1], "send");
-    amp_link_t *lnk;
-    if (send) {
-      lnk = (amp_link_t *) amp_sender(ssn, L"link");
-      amp_set_target(lnk, L"queue");
-    } else {
-      lnk = (amp_link_t *) amp_receiver(ssn, L"link");
-      amp_set_source(lnk, L"queue");
-    }
-    amp_open((amp_endpoint_t *)conn); amp_open((amp_endpoint_t *)ssn); amp_open((amp_endpoint_t *)lnk);
-    struct client_context ctx = {10, 10, drv};
-    if (send) {
-      char buf[16];
-      for (int i = 0; i < ctx.send_count; i++) {
-        sprintf(buf, "%c", 'a' + i);
-        amp_delivery(lnk, strtag(buf));
-      }
-    } else {
-      amp_receiver_t *rcv = (amp_receiver_t *) lnk;
-      amp_flow(rcv, ctx.recv_count);
-    }
-    sel = amp_connector("0.0.0.0", "5672", conn, client_callback, &ctx);
+    struct client_context ctx = {false, 10, 10, drv};
+    amp_connector(drv, "0.0.0.0", "5672", client_callback, &ctx);
   } else {
     struct server_context ctx = {0};
-    sel = amp_acceptor("0.0.0.0", "5672", server_callback, &ctx);
-  }
-  if (!sel) {
-    perror("driver");
-    exit(-1);
+    amp_acceptor(drv, "0.0.0.0", "5672", server_callback, &ctx);
   }
 
-  amp_driver_add(drv, sel);
   amp_driver_run(drv);
   amp_driver_destroy(drv);
-  amp_selectable_destroy(sel);
 
   return 0;
 }

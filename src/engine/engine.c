@@ -27,6 +27,7 @@
 #include "../protocol.h"
 #include <wchar.h>
 
+#include <stdarg.h>
 #include <stdio.h>
 
 // delivery buffers
@@ -137,14 +138,20 @@ amp_endpoint_state_t amp_remote_state(amp_endpoint_t *endpoint)
   return endpoint->remote_state;
 }
 
-amp_error_t amp_local_error(amp_endpoint_t *endpoint)
+amp_error_t *amp_local_error(amp_endpoint_t *endpoint)
 {
-  return endpoint->local_error;
+  if (endpoint->local_error.condition)
+    return &endpoint->local_error;
+  else
+    return NULL;
 }
 
-amp_error_t amp_remote_error(amp_endpoint_t *endpoint)
+amp_error_t *amp_remote_error(amp_endpoint_t *endpoint)
 {
-  return endpoint->remote_error;
+  if (endpoint->remote_error.condition)
+    return &endpoint->remote_error;
+  else
+    return NULL;
 }
 
 void amp_destroy(amp_endpoint_t *endpoint)
@@ -305,8 +312,8 @@ void amp_endpoint_init(amp_endpoint_t *endpoint, int type, amp_connection_t *con
   endpoint->type = type;
   endpoint->local_state = UNINIT;
   endpoint->remote_state = UNINIT;
-  endpoint->local_error = (amp_error_t) {0};
-  endpoint->remote_error = (amp_error_t) {0};
+  endpoint->local_error = (amp_error_t) {.condition = NULL};
+  endpoint->remote_error = (amp_error_t) {.condition = NULL};
   endpoint->endpoint_next = NULL;
   endpoint->endpoint_prev = NULL;
   endpoint->transport_next = NULL;
@@ -524,6 +531,8 @@ amp_session_t *amp_session(amp_connection_t *conn)
 
 void amp_transport_init(amp_transport_t *transport)
 {
+  amp_endpoint_init(&transport->endpoint, TRANSPORT, transport->connection);
+
   amp_map_t *m = amp_map(32);
   transport->dispatch = m;
 
@@ -789,6 +798,19 @@ static void amp_trace(amp_transport_t *transport, char *op, amp_list_t *args)
   fprintf(stderr, "%s %s\n", op, transport->scratch);
 }
 
+void amp_do_error(amp_transport_t *transport, const char *condition, const char *fmt, ...)
+{
+  va_list ap;
+  transport->endpoint.local_error.condition = condition;
+  va_start(ap, fmt);
+  // XXX: result
+  vsnprintf(transport->endpoint.local_error.description, DESCRIPTION, fmt, ap);
+  va_end(ap);
+  transport->endpoint.local_state = CLOSED;
+  fprintf(stderr, "ERROR %s %s\n", condition, transport->endpoint.local_error.description);
+  // XXX: need to write close frame if appropriate
+}
+
 void amp_do_open(amp_transport_t *transport, amp_list_t *args)
 {
   amp_trace(transport, "<- OPEN", args);
@@ -962,6 +984,10 @@ void amp_do_detach(amp_transport_t *transport, uint16_t channel, amp_list_t *arg
   bool closed = amp_to_bool(amp_list_get(args, DETACH_CLOSED));
 
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
+  if (!ssn_state) {
+    amp_do_error(transport, "amqp:invalid-field", "no such channel: %u", channel);
+    return;
+  }
   amp_link_state_t *link_state = amp_handle_state(ssn_state, handle);
   amp_link_t *link = link_state->link;
 
@@ -991,6 +1017,7 @@ void amp_do_close(amp_transport_t *transport, amp_list_t *args)
   amp_trace(transport, "<- CLOSE", args);
 
   transport->connection->endpoint.remote_state = CLOSED;
+  transport->endpoint.remote_state = CLOSED;
 }
 
 void amp_dispatch(amp_transport_t *transport, uint16_t channel,
@@ -1035,6 +1062,15 @@ void amp_dispatch(amp_transport_t *transport, uint16_t channel,
 
 ssize_t amp_input(amp_transport_t *transport, char *bytes, size_t available)
 {
+  if (transport->endpoint.local_state == CLOSED) {
+    return EOS;
+  }
+
+  if (transport->endpoint.remote_state == CLOSED) {
+    amp_do_error(transport, "amqp:connection:framing-error", "data after close");
+    return EOS;
+  }
+
   size_t read = 0;
   while (true) {
     amp_frame_t frame;
@@ -1445,6 +1481,10 @@ void amp_process(amp_transport_t *transport)
 ssize_t amp_output(amp_transport_t *transport, char *bytes, size_t size)
 {
   amp_process(transport);
+
+  if (!transport->available && transport->endpoint.local_state == CLOSED) {
+    return EOS;
+  }
 
   int n = transport->available < size ? transport->available : size;
   memmove(bytes, transport->output, n);

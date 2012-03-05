@@ -47,4 +47,40 @@
     }                                                                   \
   } while (0)
 
+#define __EMPTY__next next
+#define __EMPTY__prev prev
+#define LL_ADD(HEAD, TAIL, NODE) LL_ADD_PFX(HEAD, TAIL, NODE, __EMPTY__)
+#define LL_ADD_PFX(HEAD, TAIL, NODE, PFX)    \
+  {                                          \
+    (NODE)-> PFX ## next = NULL;             \
+    (NODE)-> PFX ## prev = (TAIL);           \
+    if (TAIL) (TAIL)-> PFX ## next = (NODE); \
+    (TAIL) = (NODE);                         \
+    if (!(HEAD)) (HEAD) = NODE;              \
+  }
+
+#define LL_POP(HEAD, TAIL) LL_POP_PFX(HEAD, TAIL, __EMPTY__)
+#define LL_POP_PFX(HEAD, TAIL, PFX)  \
+  {                                  \
+    if (HEAD) {                      \
+      void *_head = (HEAD);          \
+      (HEAD) = (HEAD)-> PFX ## next; \
+      if (_head == (TAIL))           \
+        (TAIL) = NULL;               \
+    }                                \
+  }
+
+#define LL_REMOVE(HEAD, TAIL, NODE) LL_REMOVE_PFX(HEAD, TAIL, NODE, __EMPTY__)
+#define LL_REMOVE_PFX(HEAD, TAIL, NODE, PFX)                     \
+  {                                                              \
+    if ((NODE)-> PFX ## prev)                                    \
+      (NODE)-> PFX ## prev-> PFX ## next = (NODE)-> PFX ## next; \
+    if ((NODE)-> PFX ## next)                                    \
+      (NODE)-> PFX ## next-> PFX ## prev = (NODE)-> PFX ## prev; \
+    if ((NODE) == (HEAD))                                        \
+      (HEAD) = (NODE)-> PFX ## next;                             \
+    if ((NODE) == (TAIL))                                        \
+      (TAIL) = (NODE)-> PFX ## prev;                             \
+  }
+
 #endif /* util.h */

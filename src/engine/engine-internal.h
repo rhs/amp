@@ -24,10 +24,13 @@
 
 #include <amp/engine.h>
 #include <amp/value.h>
+#include "../util.h"
+
+#define DESCRIPTION (1024)
 
 struct amp_error_t {
-  char *condition;
-  char *description;
+  const char *condition;
+  char description[DESCRIPTION];
   amp_map_t *info;
 };
 
@@ -81,7 +84,7 @@ typedef struct {
   size_t handle_capacity;
 } amp_session_state_t;
 
-#define SCRATCH 1024
+#define SCRATCH (1024)
 
 struct amp_transport_t {
   amp_endpoint_t endpoint;
@@ -179,42 +182,6 @@ void amp_destroy_sender(amp_sender_t *sender);
 void amp_destroy_receiver(amp_receiver_t *receiver);
 
 void amp_link_dump(amp_link_t *link);
-
-#define __EMPTY__next next
-#define __EMPTY__prev prev
-#define LL_ADD(HEAD, TAIL, NODE) LL_ADD_PFX(HEAD, TAIL, NODE, __EMPTY__)
-#define LL_ADD_PFX(HEAD, TAIL, NODE, PFX)    \
-  {                                          \
-    (NODE)-> PFX ## next = NULL;             \
-    (NODE)-> PFX ## prev = (TAIL);           \
-    if (TAIL) (TAIL)-> PFX ## next = (NODE); \
-    (TAIL) = (NODE);                         \
-    if (!(HEAD)) (HEAD) = NODE;              \
-  }
-
-#define LL_POP(HEAD, TAIL) LL_POP_PFX(HEAD, TAIL, __EMPTY__)
-#define LL_POP_PFX(HEAD, TAIL, PFX)  \
-  {                                  \
-    if (HEAD) {                      \
-      void *_head = (HEAD);          \
-      (HEAD) = (HEAD)-> PFX ## next; \
-      if (_head == (TAIL))           \
-        (TAIL) = NULL;               \
-    }                                \
-  }
-
-#define LL_REMOVE(HEAD, TAIL, NODE) LL_REMOVE_PFX(HEAD, TAIL, NODE, __EMPTY__)
-#define LL_REMOVE_PFX(HEAD, TAIL, NODE, PFX)                     \
-  {                                                              \
-    if ((NODE)-> PFX ## prev)                                    \
-      (NODE)-> PFX ## prev-> PFX ## next = (NODE)-> PFX ## next; \
-    if ((NODE)-> PFX ## next)                                    \
-      (NODE)-> PFX ## next-> PFX ## prev = (NODE)-> PFX ## prev; \
-    if ((NODE) == (HEAD))                                        \
-      (HEAD) = (NODE)-> PFX ## next;                             \
-    if ((NODE) == (TAIL))                                        \
-      (TAIL) = (NODE)-> PFX ## prev;                             \
-  }
 
 #define AMP_ENSURE(ARRAY, CAPACITY, COUNT)                      \
   while ((CAPACITY) < (COUNT)) {                                \

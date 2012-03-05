@@ -50,8 +50,8 @@ typedef enum amp_disposition_t {RECEIVED=1, ACCEPTED=2, REJECTED=3, RELEASED=4, 
 amp_endpoint_type_t amp_endpoint_type(amp_endpoint_t *endpoint);
 amp_endpoint_state_t amp_local_state(amp_endpoint_t *endpoint);
 amp_endpoint_state_t amp_remote_state(amp_endpoint_t *endpoint);
-amp_error_t amp_local_error(amp_endpoint_t *endpoint);
-amp_error_t amp_remote_error(amp_endpoint_t *endpoint);
+amp_error_t *amp_local_error(amp_endpoint_t *endpoint);
+amp_error_t *amp_remote_error(amp_endpoint_t *endpoint);
 void amp_destroy(amp_endpoint_t *endpoint);
 void amp_open(amp_endpoint_t *endpoint);
 void amp_close(amp_endpoint_t *endpoint);
@@ -73,6 +73,7 @@ amp_endpoint_t *amp_endpoint_next(amp_endpoint_t *endpoint,
                                   amp_endpoint_state_t remote);
 
 // transport
+#define EOS (-1)
 ssize_t amp_input(amp_transport_t *transport, char *bytes, size_t available);
 ssize_t amp_output(amp_transport_t *transport, char *bytes, size_t size);
 time_t amp_tick(amp_transport_t *engine, time_t now);
