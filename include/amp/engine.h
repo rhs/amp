@@ -111,6 +111,8 @@ amp_link_t *amp_link(amp_delivery_t *delivery);
 // how do we do delivery state?
 int amp_local_disp(amp_delivery_t *delivery);
 int amp_remote_disp(amp_delivery_t *delivery);
+bool amp_writable(amp_delivery_t *delivery);
+bool amp_readable(amp_delivery_t *delivery);
 bool amp_dirty(amp_delivery_t *delivery);
 void amp_clean(amp_delivery_t *delivery);
 void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition);

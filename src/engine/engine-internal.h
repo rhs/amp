@@ -172,6 +172,8 @@ struct amp_delivery_t {
   amp_delivery_t *tpwork_next;
   amp_delivery_t *tpwork_prev;
   bool tpwork;
+  char *bytes;
+  size_t size;
   void *context;
 };
 

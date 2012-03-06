@@ -79,6 +79,7 @@ struct server_context {
 void server_callback(amp_connection_t *conn, void *context)
 {
   struct server_context *ctx = context;
+  char tagstr[1024];
 
   amp_endpoint_t *endpoint = amp_endpoint_head(conn, UNINIT, ACTIVE);
   while (endpoint)
@@ -118,27 +119,29 @@ void server_callback(amp_connection_t *conn, void *context)
   while (delivery)
   {
     amp_binary_t tag = amp_delivery_tag(delivery);
+    amp_format(tagstr, 1024, amp_from_binary(tag));
     amp_link_t *link = amp_link(delivery);
-    if (amp_endpoint_type((amp_endpoint_t *)link) == RECEIVER) {
-      printf("received delivery: %s\n", amp_aformat(amp_from_binary(tag)));
+    if (amp_readable(delivery)) {
+      printf("received delivery: %s\n", tagstr);
       amp_receiver_t *receiver = (amp_receiver_t *) link;
       amp_recv(receiver, NULL, 0); amp_advance(link);
       amp_disposition(delivery, ACCEPTED);
-    } else {
+    } else if (amp_writable(delivery)) {
       amp_sender_t *sender = (amp_sender_t *) link;
-      while (true) {
-        amp_delivery_t *current = amp_current(link);
-        amp_send(sender, NULL, 0);
-        if (amp_advance(link)) {
-          printf("sent delivery: %s\n", amp_aformat(amp_from_binary(amp_delivery_tag(current))));
-          char tagbuf[16];
-          sprintf(tagbuf, "%i", ctx->count++);
-          amp_delivery(link, strtag(tagbuf));
-        } else {
-          break;
-        }
+      amp_send(sender, "message-body", strlen("message-body") + 1);
+      if (amp_advance(link)) {
+        printf("sent delivery: %s\n", tagstr);
+        char tagbuf[16];
+        sprintf(tagbuf, "%i", ctx->count++);
+        amp_delivery(link, strtag(tagbuf));
       }
     }
+
+    if (amp_dirty(delivery)) {
+      printf("disposition for %s: %u\n", tagstr, amp_remote_disp(delivery));
+      amp_clean(delivery);
+    }
+
     delivery = amp_work_next(delivery);
   }
 
@@ -173,7 +176,7 @@ struct client_context {
 void client_callback(amp_connection_t *connection, void *context)
 {
   struct client_context *ctx = context;
-  char scratch[1024];
+  char tagstr[1024];
 
   if (!ctx->init) {
     ctx->init = true;
@@ -205,31 +208,25 @@ void client_callback(amp_connection_t *connection, void *context)
   amp_delivery_t *delivery = amp_work_head(connection);
   while (delivery)
   {
+    amp_format(tagstr, 1024, amp_from_binary(amp_delivery_tag(delivery)));
     amp_link_t *link = amp_link(delivery);
-    amp_delivery_t *current = amp_current(link);
-    if (amp_endpoint_type((amp_endpoint_t *) link) == SENDER) {
+    if (amp_writable(delivery)) {
       amp_sender_t *snd = (amp_sender_t *) link;
-      amp_send(snd, NULL, 0);
-      if (amp_advance(link)) {
-        amp_format(scratch, 1024, amp_from_binary(amp_delivery_tag(current)));
-        printf("sent delivery: %s\n", scratch);
-      }
-    } else {
-      amp_format(scratch, 1024, amp_from_binary(amp_delivery_tag(current)));
-      printf("received delivery: %s\n", scratch);
-      amp_receiver_t *receiver = (amp_receiver_t *) link;
-      amp_recv(receiver, NULL, 0); amp_advance(link);
-      amp_disposition(current, ACCEPTED);
-      amp_settle(current);
+      amp_send(snd, "message-body", strlen("message-body")+1);
+      if (amp_advance(link)) printf("sent delivery: %s\n", tagstr);
+    } else if (amp_readable(delivery)) {
+      printf("received delivery: %s\n", tagstr);
+      amp_receiver_t *rcv = (amp_receiver_t *) link;
+      amp_recv(rcv, NULL, 0); amp_advance(link);
+      amp_disposition(delivery, ACCEPTED);
+      amp_settle(delivery);
       if (!--ctx->recv_count) {
         amp_close((amp_endpoint_t *)link);
       }
     }
 
     if (amp_dirty(delivery)) {
-      amp_binary_t tag = amp_delivery_tag(delivery);
-      amp_format(scratch, 1024, amp_from_binary(tag));
-      printf("disposition for %s: %u\n", scratch, amp_remote_disp(delivery));
+      printf("disposition for %s: %u\n", tagstr, amp_remote_disp(delivery));
       amp_clean(delivery);
       amp_settle(delivery);
       if (!--ctx->send_count) {
@@ -241,6 +238,7 @@ void client_callback(amp_connection_t *connection, void *context)
   }
 
   if (!ctx->send_count && !ctx->recv_count) {
+    printf("closing\n");
     // XXX: how do we close the session?
     //amp_close((amp_endpoint_t *) ssn);
     amp_close((amp_endpoint_t *)connection);

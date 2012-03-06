@@ -714,6 +714,8 @@ amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t tag)
   delivery->tpwork_next = NULL;
   delivery->tpwork_prev = NULL;
   delivery->tpwork = false;
+  delivery->bytes = NULL;
+  delivery->size = 0;
   delivery->context = NULL;
 
   if (!link->current)
@@ -792,10 +794,10 @@ void amp_settle(amp_delivery_t *delivery)
   amp_add_tpwork(delivery);
 }
 
-static void amp_trace(amp_transport_t *transport, char *op, amp_list_t *args)
+static void amp_trace(amp_transport_t *transport, uint16_t ch, char *op, amp_list_t *args)
 {
   amp_format(transport->scratch, SCRATCH, amp_from_list(args));
-  fprintf(stderr, "%s %s\n", op, transport->scratch);
+  fprintf(stderr, "[%u] %s %s\n", ch, op, transport->scratch);
 }
 
 void amp_do_error(amp_transport_t *transport, const char *condition, const char *fmt, ...)
@@ -813,7 +815,7 @@ void amp_do_error(amp_transport_t *transport, const char *condition, const char 
 
 void amp_do_open(amp_transport_t *transport, amp_list_t *args)
 {
-  amp_trace(transport, "<- OPEN", args);
+  amp_trace(transport, 0, "<- OPEN", args);
   amp_connection_t *conn = transport->connection;
   // TODO: store the state
   conn->endpoint.remote_state = ACTIVE;
@@ -821,7 +823,7 @@ void amp_do_open(amp_transport_t *transport, amp_list_t *args)
 
 void amp_do_begin(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
 {
-  amp_trace(transport, "<- BEGIN", args);
+  amp_trace(transport, ch, "<- BEGIN", args);
   amp_value_t remote_channel = amp_list_get(args, BEGIN_REMOTE_CHANNEL);
   amp_session_state_t *state;
   if (remote_channel.type == USHORT) {
@@ -850,7 +852,7 @@ amp_link_state_t *amp_find_link(amp_session_state_t *ssn_state, amp_string_t nam
 
 void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
 {
-  amp_trace(transport, "<- ATTACH", args);
+  amp_trace(transport, ch, "<- ATTACH", args);
   uint32_t handle = amp_to_uint32(amp_list_get(args, ATTACH_HANDLE));
   bool is_sender = amp_to_bool(amp_list_get(args, ATTACH_ROLE));
   amp_string_t name = amp_to_string(amp_list_get(args, ATTACH_NAME));
@@ -888,7 +890,7 @@ void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
 void amp_do_transfer(amp_transport_t *transport, uint16_t channel, amp_list_t *args, const char *payload_bytes, size_t payload_size)
 {
   // XXX: multi transfer
-  amp_trace(transport, "<- TRANSFER", args);
+  amp_trace(transport, channel, "<- TRANSFER", args);
   fprintf(stderr, "  PAYLOAD[%u]: %.*s\n", (unsigned int) payload_size, (int) payload_size, payload_bytes);
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
   uint32_t handle = amp_to_uint32(amp_list_get(args, TRANSFER_HANDLE));
@@ -907,7 +909,7 @@ void amp_do_transfer(amp_transport_t *transport, uint16_t channel, amp_list_t *a
 
 void amp_do_flow(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  amp_trace(transport, "<- FLOW", args);
+  amp_trace(transport, channel, "<- FLOW", args);
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
 
   amp_value_t vhandle = amp_list_get(args, FLOW_HANDLE);
@@ -934,7 +936,7 @@ void amp_do_flow(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 
 void amp_do_disposition(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  amp_trace(transport, "<- DISPOSITION", args);
+  amp_trace(transport, channel, "<- DISPOSITION", args);
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
   bool role = amp_to_bool(amp_list_get(args, DISPOSITION_ROLE));
   amp_sequence_t first = amp_to_int32(amp_list_get(args, DISPOSITION_FIRST));
@@ -978,7 +980,7 @@ void amp_do_disposition(amp_transport_t *transport, uint16_t channel, amp_list_t
 
 void amp_do_detach(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  amp_trace(transport, "<- DETACH", args);
+  amp_trace(transport, channel, "<- DETACH", args);
 
   uint32_t handle = amp_to_uint32(amp_list_get(args, DETACH_HANDLE));
   bool closed = amp_to_bool(amp_list_get(args, DETACH_CLOSED));
@@ -1003,7 +1005,7 @@ void amp_do_detach(amp_transport_t *transport, uint16_t channel, amp_list_t *arg
 
 void amp_do_end(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 {
-  amp_trace(transport, "<- END", args);
+  amp_trace(transport, channel, "<- END", args);
 
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
   amp_session_t *session = ssn_state->session;
@@ -1014,7 +1016,7 @@ void amp_do_end(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
 
 void amp_do_close(amp_transport_t *transport, amp_list_t *args)
 {
-  amp_trace(transport, "<- CLOSE", args);
+  amp_trace(transport, 0, "<- CLOSE", args);
 
   transport->connection->endpoint.remote_state = CLOSED;
   transport->endpoint.remote_state = CLOSED;
@@ -1102,8 +1104,8 @@ ssize_t amp_input(amp_transport_t *transport, char *bytes, size_t available)
 void amp_init_frame(amp_transport_t *transport)
 {
   amp_list_clear(transport->args);
+  transport->payload_bytes = NULL;
   transport->payload_size = 0;
-  transport->payload_bytes = 0;
 }
 
 void amp_field(amp_transport_t *transport, int index, amp_value_t arg)
@@ -1156,12 +1158,18 @@ void amp_post_frame(amp_transport_t *transport, uint16_t ch, uint32_t performati
   char bytes[BUF_SIZE];
   tag.descriptor = amp_ulong(performative);
   tag.value = amp_from_list(transport->args);
-  fprintf(stderr, "-> "); amp_trace(transport, amp_p2op(performative), transport->args);
+  fprintf(stderr, "-> "); amp_trace(transport, ch, amp_p2op(performative), transport->args);
   // XXX: sizeof
   size_t size = amp_encode(amp_from_tag(&tag), bytes);
+  for (int i = 0; i < amp_list_size(transport->args); i++)
+    amp_visit(amp_list_get(transport->args, i), amp_free_value);
   if (transport->payload_size) {
+    fprintf(stderr, "  PAYLOAD[%u]: %.*s\n", (unsigned int) transport->payload_size,
+            (int) transport->payload_size, transport->payload_bytes);
     memmove(bytes + size, transport->payload_bytes, transport->payload_size);
     size += transport->payload_size;
+    transport->payload_bytes = NULL;
+    transport->payload_size = 0;
   }
   frame.channel = ch;
   frame.payload = bytes;
@@ -1345,7 +1353,11 @@ void amp_process_msg_data(amp_transport_t *transport, amp_endpoint_t *endpoint)
           amp_field(transport, TRANSFER_DELIVERY_ID, amp_value("I", state->id));
           amp_field(transport, TRANSFER_DELIVERY_TAG, amp_from_binary(delivery->tag));
           amp_field(transport, TRANSFER_MESSAGE_FORMAT, amp_value("I", 0));
-          //amp_append_payload(transport, bytes, n);
+          if (delivery->bytes) {
+            amp_append_payload(transport, delivery->bytes, delivery->size);
+            delivery->bytes = NULL;
+            delivery->size = 0;
+          }
           amp_post_frame(transport, ssn_state->local_channel, TRANSFER_CODE);
           state->sent = true;
         }
@@ -1496,8 +1508,13 @@ ssize_t amp_output(amp_transport_t *transport, char *bytes, size_t size)
 
 ssize_t amp_send(amp_sender_t *sender, char *bytes, size_t n)
 {
-  // TODO: implement
-  return 0;
+  amp_delivery_t *current = amp_current(&sender->link);
+  if (!current) return -1;
+  if (current->bytes) return 0;
+  current->bytes = bytes;
+  current->size = n;
+  amp_add_tpwork(current);
+  return n;
 }
 
 ssize_t amp_recv(amp_receiver_t *receiver, char *bytes, size_t n)
@@ -1550,4 +1567,22 @@ void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition)
 {
   delivery->local_state = disposition;
   amp_add_tpwork(delivery);
+}
+
+bool amp_is_current(amp_delivery_t *delivery)
+{
+  amp_link_t *link = delivery->link;
+  return amp_current(link) == delivery;
+}
+
+bool amp_writable(amp_delivery_t *delivery)
+{
+  amp_link_t *link = delivery->link;
+  return link->endpoint.type == SENDER && amp_is_current(delivery) && link->credit > 0;
+}
+
+bool amp_readable(amp_delivery_t *delivery)
+{
+  amp_link_t *link = delivery->link;
+  return link->endpoint.type == RECEIVER && amp_is_current(delivery);
 }
