@@ -38,7 +38,7 @@ typedef struct amp_receiver_t amp_receiver_t;
 typedef struct amp_delivery_t amp_delivery_t;
 
 typedef enum amp_endpoint_state_t {UNINIT=1, ACTIVE=2, CLOSED=4} amp_endpoint_state_t;
-typedef enum amp_endpoint_type_t {CONNECTION, TRANSPORT, SESSION, SENDER, RECEIVER} amp_endpoint_type_t;
+typedef enum amp_endpoint_type_t {CONNECTION=1, TRANSPORT=2, SESSION=3, SENDER=4, RECEIVER=5} amp_endpoint_type_t;
 typedef enum amp_disposition_t {RECEIVED=1, ACCEPTED=2, REJECTED=3, RELEASED=4, MODIFIED=5} amp_disposition_t;
 
 /* Currently the way inheritence is done it is safe to "upcast" from
@@ -88,7 +88,7 @@ void amp_set_source(amp_link_t *link, wchar_t *source);
 void amp_set_target(amp_link_t *link, wchar_t *target);
 wchar_t *amp_remote_source(amp_link_t *link);
 wchar_t *amp_remote_target(amp_link_t *link);
-amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t tag);
+amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t *tag);
 amp_delivery_t *amp_current(amp_link_t *link);
 bool amp_advance(amp_link_t *link);
 
@@ -106,7 +106,7 @@ void amp_flow(amp_receiver_t *receiver, int credits);
 ssize_t amp_recv(amp_receiver_t *receiver, char *bytes, size_t n);
 
 // delivery
-amp_binary_t amp_delivery_tag(amp_delivery_t *delivery);
+amp_binary_t *amp_delivery_tag(amp_delivery_t *delivery);
 amp_link_t *amp_link(amp_delivery_t *delivery);
 // how do we do delivery state?
 int amp_local_disp(amp_delivery_t *delivery);
@@ -118,7 +118,6 @@ void amp_clean(amp_delivery_t *delivery);
 void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition);
 //int amp_format(amp_delivery_t *delivery);
 void amp_settle(amp_delivery_t *delivery);
-
-#define strtag(STR) ((amp_binary_t) {.bytes = (STR), .size=strlen((STR))})
+void amp_delivery_dump(amp_delivery_t *delivery);
 
 #endif /* engine2.h */

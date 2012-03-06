@@ -5,7 +5,8 @@ UTIL_SRC := src/util.c
 CODEC_SRC := src/codec/codec.c
 FRAMING_SRC := src/framing/framing.c
 VALUE_SRC := src/types/value.c src/types/array.c src/types/list.c \
-	src/types/map.c src/types/decode.c
+	src/types/map.c src/types/string.c src/types/binary.c \
+	src/types/decode.c
 UTIL_HDR := include/amp/util.h
 VALUE_HDR := include/amp/value.h
 ENGINE_SRC := src/engine/engine.c

@@ -186,14 +186,13 @@ void amp_decode_double(void *ctx, double v) {
 void amp_decode_binary(void *ctx, size_t size, char *bytes) {
   amp_value_t *value = next_value(ctx);
   value->type = BINARY;
-  value->u.as_binary = (amp_binary_t) {.size = size, .bytes = bytes};
+  value->u.as_binary = amp_binary(bytes, size);
 }
 void amp_decode_utf8(void *ctx, size_t size, char *bytes) {
   amp_value_t *value = next_value(ctx);
   value->type = STRING;
-  // XXX: this is a leak
   size_t remaining = (size+1)*sizeof(wchar_t);
-  wchar_t *buf = malloc(remaining);
+  wchar_t buf[size+1];
   iconv_t cd = iconv_open("WCHAR_T", "UTF-8");
   wchar_t *out = buf;
   size_t n = iconv(cd, &bytes, &size, (char **)&out, &remaining);
@@ -203,7 +202,7 @@ void amp_decode_utf8(void *ctx, size_t size, char *bytes) {
   }
   *out = L'\0';
   iconv_close(cd);
-  value->u.as_string = (amp_string_t) {.size = wcslen(buf), .wcs = buf};
+  value->u.as_string = amp_string(buf);
 }
 void amp_decode_symbol(void *ctx, size_t size, char *bytes) {
   //  amp_value_t *value = next_value(ctx);

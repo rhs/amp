@@ -103,7 +103,9 @@ void server_callback(amp_connection_t *conn, void *context)
           if (amp_endpoint_type(endpoint) == RECEIVER) {
             amp_flow((amp_receiver_t *) endpoint, 100);
           } else {
-            amp_delivery(link, strtag("blah"));
+            amp_binary_t *tag = amp_binary("blah", 4);
+            amp_delivery(link, tag);
+            amp_free_binary(tag);
           }
         }
       }
@@ -118,7 +120,7 @@ void server_callback(amp_connection_t *conn, void *context)
   amp_delivery_t *delivery = amp_work_head(conn);
   while (delivery)
   {
-    amp_binary_t tag = amp_delivery_tag(delivery);
+    amp_binary_t *tag = amp_delivery_tag(delivery);
     amp_format(tagstr, 1024, amp_from_binary(tag));
     amp_link_t *link = amp_link(delivery);
     if (amp_readable(delivery)) {
@@ -133,7 +135,9 @@ void server_callback(amp_connection_t *conn, void *context)
         printf("sent delivery: %s\n", tagstr);
         char tagbuf[16];
         sprintf(tagbuf, "%i", ctx->count++);
-        amp_delivery(link, strtag(tagbuf));
+        amp_binary_t *tag = amp_binary(tagbuf, strlen(tagbuf));
+        amp_delivery(link, tag);
+        amp_free_binary(tag);
       }
     }
 
@@ -193,7 +197,9 @@ void client_callback(amp_connection_t *connection, void *context)
       char buf[16];
       for (int i = 0; i < ctx->send_count; i++) {
         sprintf(buf, "%c", 'a' + i);
-        amp_delivery((amp_link_t *) snd, strtag(buf));
+        amp_binary_t *tag = amp_binary(buf, strlen(buf));
+        amp_delivery((amp_link_t *) snd, tag);
+        amp_free_binary(tag);
       }
     }
 
@@ -208,7 +214,8 @@ void client_callback(amp_connection_t *connection, void *context)
   amp_delivery_t *delivery = amp_work_head(connection);
   while (delivery)
   {
-    amp_format(tagstr, 1024, amp_from_binary(amp_delivery_tag(delivery)));
+    amp_binary_t *tag = amp_delivery_tag(delivery);
+    amp_format(tagstr, 1024, amp_from_binary(tag));
     amp_link_t *link = amp_link(delivery);
     if (amp_writable(delivery)) {
       amp_sender_t *snd = (amp_sender_t *) link;

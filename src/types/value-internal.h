@@ -24,6 +24,16 @@
 
 #include <amp/value.h>
 
+struct amp_string_st {
+  size_t size;
+  wchar_t wcs[];
+};
+
+struct amp_binary_st {
+  size_t size;
+  char bytes[];
+};
+
 struct amp_array_st {
   enum TYPE type;
   size_t size;

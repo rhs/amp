@@ -158,7 +158,7 @@ struct amp_receiver_t {
 
 struct amp_delivery_t {
   amp_link_t *link;
-  amp_binary_t tag;
+  amp_binary_t *tag;
   int local_state;
   int remote_state;
   bool local_settled;

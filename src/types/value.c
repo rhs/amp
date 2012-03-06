@@ -23,7 +23,6 @@
 #include <amp/util.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <ctype.h>
 #include <wchar.h>
 #include <string.h>
 #include <stdio.h>
@@ -32,22 +31,6 @@
 #include <arpa/inet.h>
 #include "../codec/encodings.h"
 #include "value-internal.h"
-
-int amp_compare_string(amp_string_t a, amp_string_t b)
-{
-  if (a.size == b.size)
-    return wmemcmp(a.wcs, b.wcs, a.size);
-  else
-    return b.size - a.size;
-}
-
-int amp_compare_binary(amp_binary_t a, amp_binary_t b)
-{
-  if (a.size == b.size)
-    return memcmp(a.bytes, b.bytes, a.size);
-  else
-    return b.size - a.size;
-}
 
 int amp_compare_value(amp_value_t a, amp_value_t b)
 {
@@ -93,27 +76,6 @@ int amp_compare_value(amp_value_t a, amp_value_t b)
   } else {
     return b.type - a.type;
   }
-}
-
-uintptr_t amp_hash_string(amp_string_t s)
-{
-  wchar_t *c;
-  uintptr_t hash = 1;
-  for (c = s.wcs; *c; c++)
-  {
-    hash = 31*hash + *c;
-  }
-  return hash;
-}
-
-uintptr_t amp_hash_binary(amp_binary_t b)
-{
-  uintptr_t hash = 0;
-  for (int i = 0; i < b.size; i++)
-  {
-    hash = 31*hash + b.bytes[i];
-  }
-  return hash;
 }
 
 uintptr_t amp_hash_value(amp_value_t v)
@@ -286,13 +248,13 @@ int amp_vscan(amp_value_t *value, const char *fmt, va_list ap)
     case 'S':
       value->type = STRING;
       wchar_t *wcs = va_arg(ap, wchar_t *);
-      value->u.as_string.size = wcslen(wcs);
-      value->u.as_string.wcs = wcs;
+      value->u.as_string = amp_string(wcs);
       break;
     case 'z':
       value->type = BINARY;
-      value->u.as_binary.size = va_arg(ap, size_t);
-      value->u.as_binary.bytes = va_arg(ap, char *);
+      size_t size = va_arg(ap, size_t);
+      char *bytes = va_arg(ap, char *);
+      value->u.as_binary = amp_binary(bytes, size);
       break;
     case '[':
       stack[level] = (stack_frame_t) {value, scan_size(fmt+1)};
@@ -406,44 +368,9 @@ amp_value_t amp_from_ref(void *r)
   return (amp_value_t) {.type = REF, .u.as_ref = r};
 }
 
-amp_value_t amp_from_binary(amp_binary_t b)
+amp_value_t amp_from_binary(amp_binary_t *b)
 {
   return (amp_value_t) {.type = BINARY, .u.as_binary = b};
-}
-
-amp_binary_t amp_binary_dup(amp_binary_t binary)
-{
-  amp_binary_t dup;
-  dup.bytes = malloc(binary.size);
-  memcpy(dup.bytes, binary.bytes, binary.size);
-  dup.size = binary.size;
-  return dup;
-}
-
-int amp_format_binary(char **pos, char *limit, amp_binary_t binary)
-{
-  for (int i = 0; i < binary.size; i++)
-  {
-    uint8_t b = binary.bytes[i];
-    if (isprint(b)) {
-      if (*pos < limit) {
-        **pos = b;
-        *pos += 1;
-      } else {
-        return -1;
-      }
-    } else {
-      if (limit - *pos > 4)
-      {
-        sprintf(*pos, "\\x%.2x", b);
-        *pos += 4;
-      } else {
-        return -1;
-      }
-    }
-  }
-
-  return 0;
 }
 
 int amp_fmt(char **pos, char *limit, const char *fmt, ...)
@@ -521,7 +448,7 @@ int amp_format_value(char **pos, char *limit, amp_value_t *values, size_t n)
       if ((e = amp_fmt(pos, limit, "%lc", v.u.as_char))) return e;
       break;
     case STRING:
-      if ((e = amp_fmt(pos, limit, "%ls", v.u.as_string.wcs))) return e;
+      if ((e = amp_fmt(pos, limit, "%ls", v.u.as_string->wcs))) return e;
       break;
     case BINARY:
       if ((e = amp_format_binary(pos, limit, v.u.as_binary))) return e;
@@ -606,9 +533,9 @@ size_t amp_format_sizeof(amp_value_t v)
   case DOUBLE:
     return 64;
   case STRING:
-    return 4*v.u.as_string.size;
+    return 4*v.u.as_string->size;
   case BINARY:
-    return 4*v.u.as_binary.size;
+    return 4*v.u.as_binary->size;
   case ARRAY:
     return amp_format_sizeof_array(v.u.as_array);
   case LIST:
@@ -648,9 +575,9 @@ size_t amp_encode_sizeof(amp_value_t v)
   case DOUBLE:
     return 9;
   case STRING:
-    return 5 + 4*v.u.as_string.size;
+    return 5 + 4*v.u.as_string->size;
   case BINARY:
-    return 5 + v.u.as_binary.size;
+    return 5 + v.u.as_binary->size;
   case ARRAY:
     return amp_encode_sizeof_array(v.u.as_array);
   case LIST:
@@ -718,16 +645,16 @@ size_t amp_encode(amp_value_t v, char *out)
     return 9;
   case STRING:
     cd = iconv_open("UTF-8", "WCHAR_T");
-    insize = 4*v.u.as_string.size;
-    inbuf = (char *)v.u.as_string.wcs;
+    insize = 4*v.u.as_string->size;
+    inbuf = (char *)v.u.as_string->wcs;
     outbuf = out + 5;
     utfsize = iconv(cd, &inbuf, &insize, &outbuf, &size);
     iconv_close(cd);
     amp_write_utf8(&out, out + size, outbuf - out - 5, out + 5);
     return out - old;
   case BINARY:
-    amp_write_binary(&out, out + size, v.u.as_binary.size, v.u.as_binary.bytes);
-    return 5 + v.u.as_binary.size;
+    amp_write_binary(&out, out + size, v.u.as_binary->size, v.u.as_binary->bytes);
+    return 5 + v.u.as_binary->size;
   case ARRAY:
     return amp_encode_array(v.u.as_array, out);
   case LIST:
@@ -759,9 +686,13 @@ void amp_free_value(amp_value_t v)
   case LONG:
   case ULONG:
   case DOUBLE:
-  case STRING:
-  case BINARY:
   case REF:
+    break;
+  case STRING:
+    amp_free_string(v.u.as_string);
+    break;
+  case BINARY:
+    amp_free_binary(v.u.as_binary);
     break;
   case ARRAY:
     amp_free_array(v.u.as_array);

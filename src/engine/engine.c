@@ -189,6 +189,14 @@ void amp_destroy_transport(amp_transport_t *transport)
 {
   amp_free_map(transport->dispatch);
   amp_free_list(transport->args);
+  for (int i = 0; i < transport->session_capacity; i++) {
+    amp_delivery_buffer_destroy(&transport->sessions[i].incoming);
+    amp_delivery_buffer_destroy(&transport->sessions[i].outgoing);
+    free(transport->sessions[i].links);
+    free(transport->sessions[i].handles);
+  }
+  free(transport->sessions);
+  free(transport->channels);
   free(transport->output);
   free(transport);
 }
@@ -248,10 +256,9 @@ void amp_remove_link(amp_session_t *ssn, amp_link_t *link)
 
 void amp_clear_tag(amp_delivery_t *delivery)
 {
-  if (delivery->tag.bytes) {
-    free(delivery->tag.bytes);
-    delivery->tag.bytes = NULL;
-    delivery->tag.size = 0;
+  if (delivery->tag) {
+    amp_free_binary(delivery->tag);
+    delivery->tag = NULL;
   }
 }
 
@@ -271,7 +278,8 @@ void amp_dump_deliveries(amp_delivery_t *delivery)
   if (delivery) {
     while (delivery)
     {
-      printf("%p(%.*s)", (void *) delivery, (int) delivery->tag.size, delivery->tag.bytes);
+      printf("%p(%.*s)", (void *) delivery, (int) amp_binary_size(delivery->tag),
+             amp_binary_bytes(delivery->tag));
       if (delivery->link_next) printf(" -> ");
       delivery = delivery->link_next;
     }
@@ -695,7 +703,7 @@ amp_session_t *amp_get_session(amp_link_t *link)
   return link->session;
 }
 
-amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t tag)
+amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t *tag)
 {
   amp_delivery_t *delivery = link->settled_head;
   LL_POP_PFX(link->settled_head, link->settled_tail, link_);
@@ -726,7 +734,25 @@ amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t tag)
   return delivery;
 }
 
-amp_binary_t amp_delivery_tag(amp_delivery_t *delivery)
+bool amp_is_current(amp_delivery_t *delivery)
+{
+  amp_link_t *link = delivery->link;
+  return amp_current(link) == delivery;
+}
+
+void amp_delivery_dump(amp_delivery_t *d)
+{
+  char tag[1024];
+  amp_format(tag, 1024, amp_from_binary(d->tag));
+  printf("{tag=%s, local_state=%u, remote_state=%u, local_settled=%u, "
+         "remote_settled=%u, dirty=%u, current=%u, writable=%u, readable=%u, "
+         "work=%u}",
+         tag, d->local_state, d->remote_state, d->local_settled,
+         d->remote_settled, d->dirty, amp_is_current(d), amp_writable(d),
+         amp_readable(d), d->work);
+}
+
+amp_binary_t *amp_delivery_tag(amp_delivery_t *delivery)
 {
   return delivery->tag;
 }
@@ -837,12 +863,12 @@ void amp_do_begin(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
   state->session->endpoint.remote_state = ACTIVE;
 }
 
-amp_link_state_t *amp_find_link(amp_session_state_t *ssn_state, amp_string_t name)
+amp_link_state_t *amp_find_link(amp_session_state_t *ssn_state, amp_string_t *name)
 {
   for (int i = 0; i < ssn_state->session->link_count; i++)
   {
     amp_link_t *link = ssn_state->session->links[i];
-    if (!wcsncmp(name.wcs, link->name, name.size))
+    if (!wcsncmp(amp_string_wcs(name), link->name, amp_string_size(name)))
     {
       return amp_link_state(ssn_state, link);
     }
@@ -855,15 +881,15 @@ void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
   amp_trace(transport, ch, "<- ATTACH", args);
   uint32_t handle = amp_to_uint32(amp_list_get(args, ATTACH_HANDLE));
   bool is_sender = amp_to_bool(amp_list_get(args, ATTACH_ROLE));
-  amp_string_t name = amp_to_string(amp_list_get(args, ATTACH_NAME));
+  amp_string_t *name = amp_to_string(amp_list_get(args, ATTACH_NAME));
   amp_session_state_t *ssn_state = amp_channel_state(transport, ch);
   amp_link_state_t *link_state = amp_find_link(ssn_state, name);
   if (!link_state) {
     amp_link_t *link;
     if (is_sender) {
-      link = (amp_link_t *) amp_sender(ssn_state->session, name.wcs);
+      link = (amp_link_t *) amp_sender(ssn_state->session, amp_string_wcs(name));
     } else {
-      link = (amp_link_t *) amp_receiver(ssn_state->session, name.wcs);
+      link = (amp_link_t *) amp_receiver(ssn_state->session, amp_string_wcs(name));
     }
     link_state = amp_link_state(ssn_state, link);
   }
@@ -878,9 +904,9 @@ void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
     remote_target = amp_tag_value(amp_to_tag(remote_target));
   // XXX: dup src/tgt
   if (remote_source.type == LIST)
-    link_state->link->remote_source = amp_to_string(amp_list_get(amp_to_list(remote_source), SOURCE_ADDRESS)).wcs;
+    link_state->link->remote_source = amp_string_wcs(amp_to_string(amp_list_get(amp_to_list(remote_source), SOURCE_ADDRESS)));
   if (remote_target.type == LIST)
-    link_state->link->remote_target = amp_to_string(amp_list_get(amp_to_list(remote_target), TARGET_ADDRESS)).wcs;
+    link_state->link->remote_target = amp_string_wcs(amp_to_string(amp_list_get(amp_to_list(remote_target), TARGET_ADDRESS)));
 
   if (!is_sender) {
     link_state->delivery_count = amp_to_int32(amp_list_get(args, ATTACH_INITIAL_DELIVERY_COUNT));
@@ -896,7 +922,7 @@ void amp_do_transfer(amp_transport_t *transport, uint16_t channel, amp_list_t *a
   uint32_t handle = amp_to_uint32(amp_list_get(args, TRANSFER_HANDLE));
   amp_link_state_t *link_state = amp_handle_state(ssn_state, handle);
   amp_link_t *link = link_state->link;
-  amp_binary_t tag = amp_to_binary(amp_list_get(args, TRANSFER_DELIVERY_TAG));
+  amp_binary_t *tag = amp_to_binary(amp_list_get(args, TRANSFER_DELIVERY_TAG));
   amp_delivery_t *delivery = amp_delivery(link, tag);
   amp_delivery_state_t *state = amp_delivery_buffer_push(&ssn_state->incoming, delivery);
   delivery->context = state;
@@ -1351,7 +1377,7 @@ void amp_process_msg_data(amp_transport_t *transport, amp_endpoint_t *endpoint)
           amp_init_frame(transport);
           amp_field(transport, TRANSFER_HANDLE, amp_value("I", link_state->local_handle));
           amp_field(transport, TRANSFER_DELIVERY_ID, amp_value("I", state->id));
-          amp_field(transport, TRANSFER_DELIVERY_TAG, amp_from_binary(delivery->tag));
+          amp_field(transport, TRANSFER_DELIVERY_TAG, amp_from_binary(amp_binary_dup(delivery->tag)));
           amp_field(transport, TRANSFER_MESSAGE_FORMAT, amp_value("I", 0));
           if (delivery->bytes) {
             amp_append_payload(transport, delivery->bytes, delivery->size);
@@ -1561,18 +1587,13 @@ bool amp_dirty(amp_delivery_t *delivery)
 void amp_clean(amp_delivery_t *delivery)
 {
   delivery->dirty = false;
+  amp_work_update(delivery->link->session->connection, delivery);
 }
 
 void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition)
 {
   delivery->local_state = disposition;
   amp_add_tpwork(delivery);
-}
-
-bool amp_is_current(amp_delivery_t *delivery)
-{
-  amp_link_t *link = delivery->link;
-  return amp_current(link) == delivery;
 }
 
 bool amp_writable(amp_delivery_t *delivery)

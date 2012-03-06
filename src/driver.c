@@ -203,8 +203,6 @@ static void amp_selectable_engine_close(amp_selectable_t *sel)
   if (close(sel->fd) == -1)
     perror("close");
   amp_driver_remove(sel->driver, sel);
-  struct amp_engine_ctx *ctx = sel->context;
-  amp_destroy((amp_endpoint_t *)ctx->connection);
   amp_selectable_destroy(sel);
 }
 
@@ -304,7 +302,12 @@ static time_t amp_selectable_engine_tick(amp_selectable_t *sel, time_t now)
 
 static void amp_engine_destroy(amp_selectable_t *s)
 {
-  if (s->context) free(s->context);
+  struct amp_engine_ctx *ctx = s->context;
+  if (ctx) {
+    amp_destroy((amp_endpoint_t *)ctx->connection);
+    free(ctx);
+    s->context = NULL;
+  }
 }
 
 static amp_selectable_t *amp_selectable_engine(int sock, amp_connection_t *conn,
@@ -343,8 +346,12 @@ amp_selectable_t *amp_connector(amp_driver_t *drv, char *host, char *port,
   if (sock == -1)
     return NULL;
 
-  if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1)
+  if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
+    freeaddrinfo(addr);
     return NULL;
+  }
+
+  freeaddrinfo(addr);
 
   amp_connection_t *conn = amp_connection();
   amp_selectable_t *s = amp_selectable_engine(sock, conn, cb, ctx);
@@ -398,8 +405,12 @@ amp_selectable_t *amp_acceptor(amp_driver_t *drv, char *host, char *port,
   if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1)
     return NULL;
 
-  if (bind(sock, addr->ai_addr, addr->ai_addrlen) == -1)
+  if (bind(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
+    freeaddrinfo(addr);
     return NULL;
+  }
+
+  freeaddrinfo(addr);
 
   if (listen(sock, 50) == -1)
     return NULL;

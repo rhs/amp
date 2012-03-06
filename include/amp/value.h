@@ -59,16 +59,6 @@ typedef struct amp_list_st amp_list_t;
 typedef struct amp_map_st amp_map_t;
 typedef struct amp_tag_st amp_tag_t;
 
-struct amp_string_st {
-  size_t size;
-  wchar_t *wcs;
-};
-
-struct amp_binary_st {
-  size_t size;
-  char *bytes;
-};
-
 struct  amp_value_st {
   enum TYPE type;
   union {
@@ -84,8 +74,8 @@ struct  amp_value_st {
     float as_float;
     double as_double;
     wchar_t as_char;
-    amp_string_t as_string;
-    amp_binary_t as_binary;
+    amp_string_t *as_string;
+    amp_binary_t *as_binary;
     amp_array_t *as_array;
     amp_list_t *as_list;
     amp_map_t *as_map;
@@ -115,17 +105,17 @@ amp_value_t amp_from_list(amp_list_t *l);
 amp_value_t amp_from_map(amp_map_t *m);
 amp_value_t amp_from_tag(amp_tag_t *t);
 amp_value_t amp_from_ref(void *r);
-amp_value_t amp_from_binary(amp_binary_t b);
+amp_value_t amp_from_binary(amp_binary_t *b);
 
-int amp_compare_string(amp_string_t a, amp_string_t b);
-int amp_compare_binary(amp_binary_t a, amp_binary_t b);
+int amp_compare_string(amp_string_t *a, amp_string_t *b);
+int amp_compare_binary(amp_binary_t *a, amp_binary_t *b);
 int amp_compare_list(amp_list_t *a, amp_list_t *b);
 int amp_compare_map(amp_map_t *a, amp_map_t *b);
 int amp_compare_tag(amp_tag_t *a, amp_tag_t *b);
 int amp_compare_value(amp_value_t a, amp_value_t b);
 
-uintptr_t amp_hash_string(amp_string_t s);
-uintptr_t amp_hash_binary(amp_binary_t b);
+uintptr_t amp_hash_string(amp_string_t *s);
+uintptr_t amp_hash_binary(amp_binary_t *b);
 uintptr_t amp_hash_list(amp_list_t *l);
 uintptr_t amp_hash_map(amp_map_t *m);
 uintptr_t amp_hash_tag(amp_tag_t *t);
@@ -137,7 +127,7 @@ size_t amp_format_sizeof_list(amp_list_t *list);
 size_t amp_format_sizeof_map(amp_map_t *map);
 size_t amp_format_sizeof_tag(amp_tag_t *tag);
 
-int amp_format_binary(char **pos, char *limit, amp_binary_t binary);
+int amp_format_binary(char **pos, char *limit, amp_binary_t *binary);
 int amp_format_array(char **pos, char *limit, amp_array_t *array);
 int amp_format_list(char **pos, char *limit, amp_list_t *list);
 int amp_format_map(char **pos, char *limit, amp_map_t *map);
@@ -155,6 +145,8 @@ void amp_free_array(amp_array_t *a);
 void amp_free_list(amp_list_t *l);
 void amp_free_map(amp_map_t *m);
 void amp_free_tag(amp_tag_t *t);
+void amp_free_binary(amp_binary_t *b);
+void amp_free_string(amp_string_t *s);
 
 void amp_visit(amp_value_t v, void (*visitor)(amp_value_t));
 void amp_visit_array(amp_array_t *v, void (*visitor)(amp_value_t));
@@ -174,7 +166,19 @@ void amp_visit_tag(amp_tag_t *t, void (*visitor)(amp_value_t));
 #define amp_to_string(V) ((V).u.as_string)
 #define amp_to_binary(V) ((V).u.as_binary)
 
-amp_binary_t amp_binary_dup(amp_binary_t binary);
+
+/* string */
+
+amp_string_t *amp_string(wchar_t *wcs);
+size_t amp_string_size(amp_string_t *str);
+wchar_t *amp_string_wcs(amp_string_t *str);
+
+/* binary */
+
+amp_binary_t *amp_binary(char *bytes, size_t size);
+size_t amp_binary_size(amp_binary_t *b);
+char *amp_binary_bytes(amp_binary_t *b);
+amp_binary_t *amp_binary_dup(amp_binary_t *b);
 
 /* arrays */
 
