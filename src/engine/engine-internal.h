@@ -134,8 +134,8 @@ struct amp_link_t {
   amp_endpoint_t endpoint;
   wchar_t *name;
   amp_session_t *session;
-  wchar_t *local_source;
-  wchar_t *local_target;
+  const wchar_t *local_source;
+  const wchar_t *local_target;
   wchar_t *remote_source;
   wchar_t *remote_target;
   amp_delivery_t *head;

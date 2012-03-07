@@ -299,6 +299,8 @@ void amp_link_dump(amp_link_t *link)
 
 void amp_link_uninit(amp_link_t *link)
 {
+  if (link->remote_source) free(link->remote_source);
+  if (link->remote_target) free(link->remote_target);
   amp_remove_link(link->session, link);
   amp_free_deliveries(link->settled_head);
   amp_free_deliveries(link->head);
@@ -613,17 +615,17 @@ amp_transport_t *amp_transport(amp_connection_t *conn)
   }
 }
 
-wchar_t *wcsdup(wchar_t *src)
+wchar_t *wcsdup(const wchar_t *src)
 {
   if (src) {
     wchar_t *dest = malloc((wcslen(src)+1)*sizeof(wchar_t));
     return wcscpy(dest, src);
   } else {
-    return src;
+    return 0;
   }
 }
 
-void amp_link_init(amp_link_t *link, int type, amp_session_t *session, wchar_t *name)
+void amp_link_init(amp_link_t *link, int type, amp_session_t *session, const wchar_t *name)
 {
   amp_endpoint_init(&link->endpoint, type, session->connection);
   amp_add_link(session, link);
@@ -637,12 +639,12 @@ void amp_link_init(amp_link_t *link, int type, amp_session_t *session, wchar_t *
   link->credit = 0;
 }
 
-void amp_set_source(amp_link_t *link, wchar_t *source)
+void amp_set_source(amp_link_t *link, const wchar_t *source)
 {
   link->local_source = source;
 }
 
-void amp_set_target(amp_link_t *link, wchar_t *target)
+void amp_set_target(amp_link_t *link, const wchar_t *target)
 {
   link->local_target = target;
 }
@@ -684,14 +686,14 @@ amp_link_state_t *amp_handle_state(amp_session_state_t *ssn_state, uint32_t hand
   return ssn_state->handles[handle];
 }
 
-amp_sender_t *amp_sender(amp_session_t *session, wchar_t *name)
+amp_sender_t *amp_sender(amp_session_t *session, const wchar_t *name)
 {
   amp_sender_t *snd = malloc(sizeof(amp_sender_t));
   amp_link_init(&snd->link, SENDER, session, name);
   return snd;
 }
 
-amp_receiver_t *amp_receiver(amp_session_t *session, wchar_t *name)
+amp_receiver_t *amp_receiver(amp_session_t *session, const wchar_t *name)
 {
   amp_receiver_t *rcv = malloc(sizeof(amp_receiver_t));
   amp_link_init(&rcv->link, RECEIVER, session, name);
@@ -805,6 +807,7 @@ void amp_real_settle(amp_delivery_t *delivery)
   // TODO: what if we settle the current delivery?
   LL_ADD_PFX(link->settled_head, link->settled_tail, delivery, link_);
   amp_clear_tag(delivery);
+  delivery->size = 0;
 }
 
 void amp_full_settle(amp_delivery_buffer_t *db, amp_delivery_t *delivery)
@@ -906,9 +909,9 @@ void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
     remote_target = amp_tag_value(amp_to_tag(remote_target));
   // XXX: dup src/tgt
   if (remote_source.type == LIST)
-    link_state->link->remote_source = amp_string_wcs(amp_to_string(amp_list_get(amp_to_list(remote_source), SOURCE_ADDRESS)));
+    link_state->link->remote_source = wcsdup(amp_string_wcs(amp_to_string(amp_list_get(amp_to_list(remote_source), SOURCE_ADDRESS))));
   if (remote_target.type == LIST)
-    link_state->link->remote_target = amp_string_wcs(amp_to_string(amp_list_get(amp_to_list(remote_target), TARGET_ADDRESS)));
+    link_state->link->remote_target = wcsdup(amp_string_wcs(amp_to_string(amp_list_get(amp_to_list(remote_target), TARGET_ADDRESS))));
 
   if (!is_sender) {
     link_state->delivery_count = amp_to_int32(amp_list_get(args, ATTACH_INITIAL_DELIVERY_COUNT));
@@ -1388,7 +1391,6 @@ void amp_process_msg_data(amp_transport_t *transport, amp_endpoint_t *endpoint)
           amp_field(transport, TRANSFER_MESSAGE_FORMAT, amp_value("I", 0));
           if (delivery->bytes) {
             amp_append_payload(transport, delivery->bytes, delivery->size);
-            delivery->bytes = NULL;
             delivery->size = 0;
           }
           amp_post_frame(transport, ssn_state->local_channel, TRANSFER_CODE);
@@ -1539,13 +1541,14 @@ ssize_t amp_output(amp_transport_t *transport, char *bytes, size_t size)
   return n;
 }
 
-ssize_t amp_send(amp_sender_t *sender, char *bytes, size_t n)
+ssize_t amp_send(amp_sender_t *sender, const char *bytes, size_t n)
 {
   amp_delivery_t *current = amp_current(&sender->link);
   if (!current) return -1;
   if (current->bytes) return 0;
-  current->bytes = bytes;
-  current->size = n;
+  AMP_ENSURE(current->bytes, current->capacity, current->size + n);
+  memmove(current->bytes + current->size, bytes, n);
+  current->size = +n;
   amp_add_tpwork(current);
   return n;
 }

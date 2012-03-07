@@ -79,13 +79,13 @@ ssize_t amp_output(amp_transport_t *transport, char *bytes, size_t size);
 time_t amp_tick(amp_transport_t *engine, time_t now);
 
 // session
-amp_sender_t *amp_sender(amp_session_t *session, wchar_t *name);
-amp_receiver_t *amp_receiver(amp_session_t *session, wchar_t *name);
+amp_sender_t *amp_sender(amp_session_t *session, const wchar_t *name);
+amp_receiver_t *amp_receiver(amp_session_t *session, const wchar_t *name);
 
 // link
 amp_session_t *amp_get_session(amp_link_t *link);
-void amp_set_source(amp_link_t *link, wchar_t *source);
-void amp_set_target(amp_link_t *link, wchar_t *target);
+void amp_set_source(amp_link_t *link, const wchar_t *source);
+void amp_set_target(amp_link_t *link, const wchar_t *target);
 wchar_t *amp_remote_source(amp_link_t *link);
 wchar_t *amp_remote_target(amp_link_t *link);
 amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t *tag);
@@ -97,7 +97,7 @@ amp_delivery_t *amp_unsettled_next(amp_delivery_t *delivery);
 
 // sender
 void amp_offer(amp_sender_t *sender, int credits);
-ssize_t amp_send(amp_sender_t *sender, char *bytes, size_t n);
+ssize_t amp_send(amp_sender_t *sender, const char *bytes, size_t n);
 void amp_abort(amp_sender_t *sender);
 
 // receiver
