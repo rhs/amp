@@ -268,6 +268,7 @@ void amp_free_deliveries(amp_delivery_t *delivery)
   {
     amp_delivery_t *next = delivery->link_next;
     amp_clear_tag(delivery);
+    if (delivery->capacity) free(delivery->bytes);
     free(delivery);
     delivery = next;
   }
@@ -724,6 +725,7 @@ amp_delivery_t *amp_delivery(amp_link_t *link, amp_binary_t *tag)
   delivery->tpwork = false;
   delivery->bytes = NULL;
   delivery->size = 0;
+  delivery->capacity = 0;
   delivery->context = NULL;
 
   if (!link->current)
@@ -916,6 +918,7 @@ void amp_do_attach(amp_transport_t *transport, uint16_t ch, amp_list_t *args)
 void amp_do_transfer(amp_transport_t *transport, uint16_t channel, amp_list_t *args, const char *payload_bytes, size_t payload_size)
 {
   // XXX: multi transfer
+
   amp_trace(transport, channel, "<- TRANSFER", args);
   fprintf(stderr, "  PAYLOAD[%u]: %.*s\n", (unsigned int) payload_size, (int) payload_size, payload_bytes);
   amp_session_state_t *ssn_state = amp_channel_state(transport, channel);
@@ -931,6 +934,10 @@ void amp_do_transfer(amp_transport_t *transport, uint16_t channel, amp_list_t *a
   if (id != state->id) {
     // XXX: signal error somehow
   }
+
+  AMP_ENSURE(delivery->bytes, delivery->capacity, payload_size);
+  memmove(delivery->bytes, payload_bytes, payload_size);
+  delivery->size = payload_size;
 }
 
 void amp_do_flow(amp_transport_t *transport, uint16_t channel, amp_list_t *args)
@@ -1547,10 +1554,20 @@ ssize_t amp_recv(amp_receiver_t *receiver, char *bytes, size_t n)
 {
   amp_link_t *link = &receiver->link;
   amp_delivery_t *delivery = link->current;
-  if (delivery->link_next) {
-    // do nothing
+  if (delivery) {
+    if (delivery->size) {
+      size_t size = n > delivery->size ? delivery->size : n;
+      memmove(bytes, delivery->bytes, size);
+      memmove(bytes, bytes + size, delivery->size - size);
+      delivery->size -= size;
+      return size;
+    } else {
+      return EOM;
+    }
+  } else {
+    // XXX: ?
+    return EOM;
   }
-  return EOM;
 }
 
 void amp_flow(amp_receiver_t *receiver, int credits)

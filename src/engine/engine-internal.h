@@ -174,6 +174,7 @@ struct amp_delivery_t {
   bool tpwork;
   char *bytes;
   size_t size;
+  size_t capacity;
   void *context;
 };
 

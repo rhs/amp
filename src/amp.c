@@ -80,6 +80,7 @@ void server_callback(amp_connection_t *conn, void *context)
 {
   struct server_context *ctx = context;
   char tagstr[1024];
+  char msg[1024];
 
   amp_endpoint_t *endpoint = amp_endpoint_head(conn, UNINIT, ACTIVE);
   while (endpoint)
@@ -126,11 +127,22 @@ void server_callback(amp_connection_t *conn, void *context)
     if (amp_readable(delivery)) {
       printf("received delivery: %s\n", tagstr);
       amp_receiver_t *receiver = (amp_receiver_t *) link;
-      amp_recv(receiver, NULL, 0); amp_advance(link);
-      amp_disposition(delivery, ACCEPTED);
+      printf("  payload = \"");
+      while (true) {
+        ssize_t n = amp_recv(receiver, msg, 1024);
+        if (n == EOM) {
+          amp_advance(link);
+          amp_disposition(delivery, ACCEPTED);
+          break;
+        } else {
+          printf("%.*s", (int) n, msg);
+        }
+      }
+      printf("\"\n");
     } else if (amp_writable(delivery)) {
       amp_sender_t *sender = (amp_sender_t *) link;
-      amp_send(sender, "message-body", strlen("message-body") + 1);
+      sprintf(msg, "message body for %s", tagstr);
+      amp_send(sender, msg, strlen(msg));
       if (amp_advance(link)) {
         printf("sent delivery: %s\n", tagstr);
         char tagbuf[16];
@@ -181,6 +193,7 @@ void client_callback(amp_connection_t *connection, void *context)
 {
   struct client_context *ctx = context;
   char tagstr[1024];
+  char msg[1024];
 
   if (!ctx->init) {
     ctx->init = true;
@@ -219,17 +232,28 @@ void client_callback(amp_connection_t *connection, void *context)
     amp_link_t *link = amp_link(delivery);
     if (amp_writable(delivery)) {
       amp_sender_t *snd = (amp_sender_t *) link;
-      amp_send(snd, "message-body", strlen("message-body")+1);
+      sprintf(msg, "message body for %s", tagstr);
+      amp_send(snd, msg, strlen(msg));
       if (amp_advance(link)) printf("sent delivery: %s\n", tagstr);
     } else if (amp_readable(delivery)) {
       printf("received delivery: %s\n", tagstr);
       amp_receiver_t *rcv = (amp_receiver_t *) link;
-      amp_recv(rcv, NULL, 0); amp_advance(link);
-      amp_disposition(delivery, ACCEPTED);
-      amp_settle(delivery);
-      if (!--ctx->recv_count) {
-        amp_close((amp_endpoint_t *)link);
+      printf("  payload = \"");
+      while (true) {
+        size_t n = amp_recv(rcv, msg, 1024);
+        if (n == EOM) {
+          amp_advance(link);
+          amp_disposition(delivery, ACCEPTED);
+          amp_settle(delivery);
+          if (!--ctx->recv_count) {
+            amp_close((amp_endpoint_t *)link);
+          }
+          break;
+        } else {
+          printf("%.*s", (int) n, msg);
+        }
       }
+      printf("\"\n");
     }
 
     if (amp_dirty(delivery)) {
@@ -278,10 +302,10 @@ int main(int argc, char **argv)
   amp_driver_t *drv = amp_driver();
   if (argc > 1) {
     struct client_context ctx = {false, 10, 10, drv};
-    amp_connector(drv, "0.0.0.0", "5672", client_callback, &ctx);
+    if (!amp_connector(drv, "0.0.0.0", "5672", client_callback, &ctx)) perror("amp");
   } else {
     struct server_context ctx = {0};
-    amp_acceptor(drv, "0.0.0.0", "5672", server_callback, &ctx);
+    if (!amp_acceptor(drv, "0.0.0.0", "5672", server_callback, &ctx)) perror("amp");
   }
 
   amp_driver_run(drv);
