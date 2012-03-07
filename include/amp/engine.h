@@ -1,5 +1,5 @@
-#ifndef _AMP_ENGINE2_H
-#define _AMP_ENGINE2_H 1
+#ifndef _AMP_ENGINE_H
+#define _AMP_ENGINE_H 1
 
 /*
  *
@@ -120,4 +120,4 @@ void amp_disposition(amp_delivery_t *delivery, amp_disposition_t disposition);
 void amp_settle(amp_delivery_t *delivery);
 void amp_delivery_dump(amp_delivery_t *delivery);
 
-#endif /* engine2.h */
+#endif /* engine.h */
